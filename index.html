@@ -449,7 +449,7 @@ function swing(s,i,reaction=false,extraDie=false){const id=run.picks[i],pf=profi
  const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],id==='mastermind'?0:3+attrDelta(i,atkAttr(id)),sneak,-1,false,weaponDice(i));
  let extra=0;if(extraDie&&damage>0){extra=roll(s,pf[3])*(s.lastDegree===3&&!e.critImmune?2:1);note(s,'Proud Nail · '+extra+' extra weapon damage')}
  consumeFeint(e,i);const dealt=damageEnemy(s,damage+extra,weaponType(id));if(dealt>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){if(e.mindless)note(s,e.name+' is immune to Brutal Beating fear');else{e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}}
-function defend(s,t,n){if(!n)return {i:t,damage:0};kit(s);const intercepted=tryIntercept(s,t,n);if(intercepted)return intercepted;
+function defend(s,t,n,type='physical',area=false){if(!n)return {i:t,damage:0};kit(s);const physical=['physical','piercing','slashing','bludgeoning'].includes(type);const intercepted=physical&&!area?tryIntercept(s,t,n):null;if(intercepted)return intercepted;
  for(let i=0;i<3;i++){let id=run.picks[i];if(i===t||!s.ready[i]||!s.hp[i]||!['justice','liberation'].includes(id))continue;
  if(dist(s.pos[i],enemySquare())>3||dist(s.pos[i],s.pos[t])>3||!clear(s.pos[i],enemySquare())||!clear(s.pos[i],s.pos[t]))continue;
  const resist=2+level();n=Math.max(0,n-resist);s.ready[i]=false;note(s,name(id)+' guards an ally · resistance '+resist);
@@ -458,7 +458,7 @@ function defend(s,t,n){if(!n)return {i:t,damage:0};kit(s);const intercepted=tryI
  if(dist(s.pos[i],enemySquare())===1&&target(s).hp>0)swing(s,i,true);
  }
  if(id==='liberation'&&!s.webbed?.[t]&&!s.prone?.[t]){const from=s.pos[t],steps=Array.from({length:45},(_,k)=>k).filter(k=>open(k)&&!s.pos.includes(k)&&dist(from,k)===1&&clear(from,k)&&dist(k,enemySquare())>dist(from,enemySquare())).sort((a,b)=>coverAt(b,t)-coverAt(a,t));if(steps.length){s.pos[t]=steps[0];note(s,name(run.picks[t])+' Steps away.')}}
- break} return hurtHero(s,t,shieldBlock(s,t,n))}
+ break} if(physical)return hurtHero(s,t,area?n:shieldBlock(s,t,n));const damage=directDamage(s,t,n,type);return {i:t,damage}}
 function releaseGrab(e,s,why){if(!(e.grabbedBy>=0))return;e.grabbedBy=-1;e.restrained=false;note(s,e.name+' · '+why)}
 function holdEnemy(s,i){return s.enemies.find(e=>e.hp>0&&e.grabbedBy===i)}
 function skillMod(i,k){const id=run.picks[i],a=['feint','demoralize'].includes(k)?5:0,trained=k==='feint'?['thief','mastermind','justice','liberation'].includes(id):k==='demoralize'?['shield','reach','justice','liberation','bodyguard','harmful','thief'].includes(id):['shield','reach','justice','liberation','bodyguard','thief'].includes(id);return attrValue(i,a)+(trained?level()+2:0)}
@@ -548,7 +548,7 @@ function resolveArea(s,side,index,center,a,dc){
  note(s,(side==='hero'?name(run.picks[index]):s.enemies[index].name)+' · '+a.name+' · '+base+' '+a.type+' · basic '+a.save+' DC '+dc);
  // Snapshot targets: reactions or deaths do not remove others from the original area.
  for(const t of targets){const d=roll(s,20),mod=saveModifier(s,t,a.save,origin),degree=outcome(d,mod,dc),n=basicDamage(base,degree),label=t.side==='hero'?name(run.picks[t.i]):s.enemies[t.i].name;note(s,label+' '+a.save+' save · '+(d+mod)+' vs '+dc+' · '+['critical failure','failure','success','critical success'][degree]+' · '+n+' '+a.type);
- if(t.side==='hero'){if(n>0&&s.hp[t.i]>0)directDamage(s,t.i,n,a.type)}else{s.target=t.i;damageEnemy(s,n,a.type,true)}}
+ if(t.side==='hero'){if(n>0&&s.hp[t.i]>0){if(side==='enemy'){s.target=index;defend(s,t.i,n,a.type,true)}else directDamage(s,t.i,n,a.type)}}else{s.target=t.i;damageEnemy(s,n,a.type,true)}}
  s.target=original;return true}
 function chooseBlast(s,e){const index=s.enemies.indexOf(e),a=areaSpells.fireBurst;let best=null;for(let pos=0;pos<45;pos++){if(!validAreaOrigin(e.pos,pos,a))continue;const ts=areaTargets(s,'enemy',index,pos,a),heroes=ts.filter(t=>t.side==='hero'),allies=ts.filter(t=>t.side==='enemy'),score=heroes.length*3-allies.length*4+(heroes.some(t=>t.i===e.taunt)?.5:0);if(heroes.length&&score>0&&(!best||score>best.score))best={pos,score}}return best?.pos??null}
 function areaWarnings(s){return s.enemies.filter(e=>e.hp>0&&e.areaMark!=null).map(e=>'<p role="status" style="color:#ffb7a3"><b>'+e.name+' prepares Fire Burst!</b> Red squares will be hit on its next turn; move out of the marked area.</p>').join('')}
@@ -561,13 +561,13 @@ function enemyTurn(){const s=run.battle;kit(s);const saved=s.target;
  let actions=3-(e.slow||0),attackCount=0,escapeBlocked=false;
  if(e.grabbedBy>=0&&e.hp>0){const deg=enemyEscape(s,e,attackCount++);actions--;escapeBlocked=deg===0}
  if(e.prone&&!(e.grabbedBy>=0)&&e.hp>0&&actions>0){enemyStand(s,e);actions--}
- if(e.areaMark!=null){const center=e.areaMark;e.areaMark=null;if(actions>=2&&!e.restrained&&e.hp>0){if(resolveArea(s,'enemy',s.active-3,center,areaSpells.fireBurst,10+e.attack-1)){e.areaCasts--;actions-=2}}else note(s,e.name+' loses concentration on the marked blast.');}
+ const releasingArea=e.areaMark!=null;if(releasingArea){const center=e.areaMark;e.areaMark=null;if(actions>=2&&!e.restrained&&e.hp>0){if(resolveArea(s,'enemy',s.active-3,center,areaSpells.fireBurst,10+e.attack-1)){e.areaCasts--;actions-=2}}else note(s,e.name+' loses concentration on the marked blast.');}
  if(e.boss&&e.charging&&actions>=2&&!e.restrained&&e.hp>0){bossSweep(s,e);actions-=2}
  else {if(e.boss&&e.charging&&e.hp>0){e.charging=false;note(s,e.name+' cannot complete the sweep this turn.')}
  if(actions>0&&e.hp>0&&e.grabbedBy>=0&&!escapeBlocked){enemyEscape(s,e,attackCount++);actions--}
  if(actions>0&&e.hp>0&&!e.restrained&&e.web&&!e.prone){const t=webTarget(s,e);if(t!==undefined){spinWeb(s,e,t);actions--;attackCount++}}
  if(actions>=2&&e.hp>0&&!e.restrained&&healMonster(s,e))actions-=2;
- if(actions>=2&&e.hp>0&&!e.restrained&&e.areaCasts>0&&!e.swarm){actions-=enemyAreaAction(s,e,actions)}
+ if(!releasingArea&&actions>=2&&e.hp>0&&!e.restrained&&e.areaCasts>0&&!e.swarm){actions-=enemyAreaAction(s,e,actions)}
  if(actions>0&&e.hp>0&&!e.restrained&&e.areaMark==null&&enemyMove(s,e))actions--;
  if(e.swarm&&e.hp>0)actions-=enemyAreaAction(s,e,actions);
  if(actions>0&&e.hp>0&&!e.restrained&&e.shieldHP>6){e.shieldRaised=true;actions--;note(s,e.name+' Raises Shield · +2 AC')}
