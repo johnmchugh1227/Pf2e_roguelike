@@ -496,7 +496,8 @@ function kit(s){ensureLoot();s.antidote??=[false,false,false];s.hazards??=[];s.h
 const venomProfiles={spider:{label:'Spider venom',dice:[4,6,6],maxTicks:3},centipede:{label:'Centipede venom',dice:[4,6,8],maxTicks:4}};
 function heroMax(s,i){return Math.max(1,profile(run.picks[i])[0]-level()*(s.drained?.[i]||0))}
 function fortitudeMod(i){const id=run.picks[i],expert=['shield','reach','bodyguard','harmful','justice','liberation'].includes(id);return level()+(expert?4:2)+attrValue(i,2)+charmBonus(i,'fort')-(run.battle?.drained?.[i]||0)}
-function medicineMod(i){return level()+2+attrValue(i,4)+charmBonus(i,'medicine')}
+function medicineTrained(i){return ['healing','harmful'].includes(run.picks[i])}
+function medicineMod(i){return (medicineTrained(i)?level()+2:0)+attrValue(i,4)+charmBonus(i,'medicine')}
 function ghoulParalysis(s,i,e){const dc=10+e.attack-2,d=roll(s,20),mod=fortitudeMod(i),degree=outcome(d,mod,dc);note(s,e.name+' paralysis save · '+(d+mod)+' vs DC '+dc);if(degree<2){s.stiff[i]=Math.max(s.stiff[i],degree===0?2:1);note(s,name(run.picks[i])+' partially paralyzed · next turn loses '+s.stiff[i]+' action'+(s.stiff[i]===2?'s and cannot move':''))}}
 function drainLife(s,i,e){if(!e.hp||!s.hp[i])return;const heal=Math.min(2,e.max-e.hp);e.hp+=heal;if(heal)note(s,e.name+' Drain Life restores '+heal+' HP');
  const dc=10+e.attack-2,d=roll(s,20),mod=fortitudeMod(i),degree=outcome(d,mod,dc);note(s,name(run.picks[i])+' Drain Life save · '+(d+mod)+' vs DC '+dc);if(degree>=2||s.drained[i]>=2)return;
@@ -824,6 +825,34 @@ function defensePanel(s){
  return h+'</div><p class="legend">Reactions share one use per turn cycle. Shield Block prevents up to 5 physical damage; excess damages both the shield and hero. Broken shields cannot be raised. Claim loot to restore shields between rooms.</p>'}
 function healingEstimate(s,i){const missing=hpInfo(s,i).missing,lo=9*fontRank(),hi=(spellDie(s.active)+8)*fontRank();return 'Restore '+Math.min(lo,missing)+(Math.min(lo,missing)===Math.min(hi,missing)?'':'–'+Math.min(hi,missing))+' HP'+(missing<hi?' (capped at missing HP)':'')}
 function skillButtons(s){const options=skills(s);return '<div class="heal-actions">'+options.map(([key,label])=>key.startsWith('heal')?'<button data-skill="'+key+'">'+label+'<small>'+hpLabel(s,Number(key[4]))+' · '+healingEstimate(s,Number(key[4]))+'</small></button>':'<button data-skill="'+key+'">'+label+'</button>').join('')+'</div>'}
+// One shared ten-minute activity per cleared room. A separate sanctuary choice is available after rooms 5 and 9.
+function recoveryState(s){return s.recovery??={used:false,medic:null,rest:null}}
+function recoveryOpen(s){return won(s)&&s.reward&&s.hp.some(Boolean)&&!tenthRoom()}
+function eligibleMedic(s,i){return Number.isInteger(i)&&i>=0&&i<3&&s.hp[i]>0&&medicineTrained(i)}
+function recoveryMedic(s){const r=recoveryState(s),ids=[0,1,2].filter(i=>eligibleMedic(s,i)).sort((a,b)=>medicineMod(b)-medicineMod(a)||a-b);return ids.includes(r.medic)?r.medic:ids[0]??-1}
+function recoverHP(s,i,n){const before=s.hp[i];s.hp[i]=Math.min(heroMax(s,i),Math.max(0,before+n));return s.hp[i]-before}
+function treatWounds(s,i,t){if(!recoveryOpen(s)||recoveryState(s).used||!eligibleMedic(s,i)||!Number.isInteger(t)||t<0||t>2||s.hp[t]>=heroMax(s,t))return false;
+ const r=recoveryState(s);r.used=true;r.medic=i;const d=roll(s,20),mod=medicineMod(i),degree=outcome(d,mod,15);let result=0;
+ if(degree===3){for(let j=0;j<4;j++)result+=roll(s,8)}else if(degree===2){result=roll(s,8)+roll(s,8)}else if(degree===0){result=-roll(s,8)}
+ if(result<0&&s.hp[t]>0&&s.hp.filter(Boolean).length===1)result=Math.max(result,1-s.hp[t]);
+ const change=recoverHP(s,t,result);r.result=name(run.picks[i])+' Treat Wounds → '+name(run.picks[t])+' · '+(d+mod)+' vs DC 15 · '+['critical failure','failure','success','critical success'][degree]+' · '+(change>=0?'+':'')+change+' HP';note(s,r.result);return true}
+function basicTreatment(s,t){if(!recoveryOpen(s)||recoveryState(s).used||!Number.isInteger(t)||t<0||t>2||s.hp[t]>=heroMax(s,t))return false;
+ const r=recoveryState(s);r.used=true;const n=recoverHP(s,t,level()+2);r.result='Basic treatment → '+name(run.picks[t])+' · '+n+' HP restored';note(s,r.result);return true}
+function sanctuaryRoom(){return (run.room||1)===5||ninthRoom()}
+function sanctuary(s,choice){if(!recoveryOpen(s)||!sanctuaryRoom()||recoveryState(s).rest||!['rest','resupply'].includes(choice))return false;
+ const r=recoveryState(s);r.rest=choice;
+ if(choice==='rest'){const changes=run.picks.map((id,i)=>s.hp[i]>0?recoverHP(s,i,Math.ceil(heroMax(s,i)/4)):0);note(s,'Sanctuary rest · '+changes.map((n,i)=>name(run.picks[i])+' +'+n+' HP').join(' · '))}
+ else{s.potions+=2;note(s,'Sanctuary resupply · two minor healing potions');for(let i=0;i<3;i++)if(s.hp[i]>0&&['healing','harmful'].includes(run.picks[i])&&s.font[i]<4){s.font[i]++;note(s,name(run.picks[i])+' recovers one divine font cast from the sanctuary blessing')}}
+ return true}
+function recoveryPanel(s){if(!recoveryOpen(s))return '';const r=recoveryState(s),i=recoveryMedic(s),patients=[0,1,2].filter(t=>s.hp[t]<heroMax(s,t)),medics=[0,1,2].filter(j=>eligibleMedic(s,j));
+ let out='<section class="card recovery"><h3>Between-room recovery</h3><p>One shared recovery activity before the next room. '+(r.used?'Activity spent.':'Activity available.')+'</p>';
+ if(r.used)out+='<p>'+r.result+'</p>';else if(!patients.length)out+='<p>Everyone is at full HP. No treatment needed.</p>';else{
+ if(i>=0){const mod=medicineMod(i);out+='<p><b>Treat Wounds</b> · Medicine '+(mod>=0?'+':'')+mod+' vs DC 15 · success 2d8, critical success 4d8, critical failure 1d8 damage.</p>';
+ if(medics.length>1)out+='<div class="actions">'+medics.map(j=>'<button data-recoverymedic="'+j+'" aria-pressed="'+(i===j)+'">'+name(run.picks[j])+' · '+medicineMod(j)+'</button>').join('')+'</div>';
+ out+='<div class="actions">'+patients.map(t=>'<button data-treatwounds="'+t+'">Treat '+name(run.picks[t])+' · '+hpLabel(s,t)+'</button>').join('')+'</div>'}
+ out+='<p><b>Basic treatment</b> · guaranteed '+(level()+2)+' HP, no roll or training. Uses the same activity.</p><div class="actions">'+patients.map(t=>'<button data-basicrecovery="'+t+'">Bandage '+name(run.picks[t])+'</button>').join('')+'</div>'}
+ if(sanctuaryRoom()){out+='<h3>Sanctuary</h3><p>'+ (r.rest?'Used: '+(r.rest==='rest'?'Rest':'Resupply'):'Choose one additional recovery benefit.')+'</p>';if(!r.rest)out+='<div class="actions"><button data-sanctuary="rest">Rest · living heroes recover 25% max HP</button><button data-sanctuary="resupply">Resupply · 2 potions'+(run.picks.some(id=>['healing','harmful'].includes(id))?' + 1 font cast per living cleric (max 4)':'')+'</button></div>'}
+ return out+'<p class="legend">Treat Wounds and basic treatment can revive downed heroes. Sanctuary rest does not. Unused recovery does not carry forward.</p></section>'}
 function supplyPanel(s){
  const rows=run.picks.map((id,i)=>'<li>'+name(id)+(run.runeHero===i?(run.striking?' · +1 striking weapon':' · +1 weapon'):'')+' · '+hpLabel(s,i)+(['healing','harmful'].includes(id)?' · '+s.font[i]+' rank '+fontRank()+' font casts':'')+(s.potions>0&&s.hp[i]<heroMax(s,i)? ' <button data-potion="'+i+'">Give potion</button>':'')+'</li>').join('');
  return '<h3>Party supplies</h3><p>Minor healing potions · '+s.potions+' · Lesser: '+(run.supplies?.lesser||0)+' · Antidote: '+(run.supplies?.antidote||0)+'</p><ul>'+rows+'</ul>';
@@ -838,6 +867,7 @@ function field(){const s=run.battle,r=layout(),win=won(s);
  h+=partyPanel(s,!win&&s.hp.some(h=>h>0));
  if(!s.hp.some(h=>h>0))return h+'<h2>Party defeated</h2><button data-retry="1">Retry encounter</button> <button data-reset="new">New draft</button>'+combatLog(s);if(win){
  h+='<h2>Encounter cleared</h2>';
+ if(s.reward)h+=recoveryPanel(s);
  if(!s.reward)h+=lootPanel(s);
  else if(secondRoom()){
  if(!run.advancement)h+='<h3>Two rooms cleared</h3><p>Room rewards collected. Your party has earned level 2.</p><button data-levelup="1">Level up party</button>';
@@ -900,6 +930,10 @@ function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
  if(!s.hp.some(h=>h>0)){if(d.retry){run.battle=newRoom();enemyTurn()}return true}if(won(s)){kit(s);s.potions??=s.reward&&!secondRoom()?1:0;
  if(d.claim&&!s.reward){claimLoot(s,null)}
  else if(d.loot!==undefined&&!s.reward){claimLoot(s,d.loot,Number(d.recipient))}
+ else if(d.recoverymedic!==undefined&&recoveryOpen(s)&&!recoveryState(s).used){const i=Number(d.recoverymedic);if(eligibleMedic(s,i))recoveryState(s).medic=i}
+ else if(d.treatwounds!==undefined){treatWounds(s,recoveryMedic(s),Number(d.treatwounds))}
+ else if(d.basicrecovery!==undefined){basicTreatment(s,Number(d.basicrecovery))}
+ else if(d.sanctuary){sanctuary(s,d.sanctuary)}
  else if(d.equip){equipLoot(s,Number(d.recipient),d.equip,d.equipkey==='starter'?null:d.equipkey)}
  else if(d.supply){useSupply(s,Number(d.recipient),d.supply,false)}
  else if(d.levelup)startAdvancement(s);
