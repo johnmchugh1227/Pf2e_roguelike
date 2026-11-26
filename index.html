@@ -252,7 +252,7 @@ function outcome(d,bonus,ac){let degree=d+bonus>=ac+10?3:d+bonus>=ac?2:d+bonus<=
 function strikeRoll(s,title,bonus,ac,die,flat,sneak=false,defender=-1,melee=false,dice=1){const d=roll(s,20);let deg=outcome(d,bonus,ac);
  if(defender>=0&&s.ready[defender]&&deg>=2){
  const f=hasFeat(defender,'Nimble Dodge')?'Nimble Dodge':hasFeat(defender,'Reactive Shield')?'Reactive Shield':null,cover=coverAt(s.pos[defender],defender);
- if(f==='Nimble Dodge'||(f==='Reactive Shield'&&melee&&!s.raised[defender])){
+ if(f==='Nimble Dodge'||(f==='Reactive Shield'&&melee&&!s.raised[defender]&&shieldUsable(s,defender))){
  const upgraded=profile(run.picks[defender])[1]+Math.max(2,cover);
  if(f==='Reactive Shield'||outcome(d,bonus,upgraded)<deg){s.ready[defender]=false;if(f==='Reactive Shield')s.raised[defender]=true;ac=upgraded;deg=outcome(d,bonus,ac);note(s,name(run.picks[defender])+' · '+f+' reaction');}
  }}
@@ -265,7 +265,34 @@ function penalty(n,agile=false){return Math.min(2,n)*(agile?4:5)}
 function advance(){const s=run.battle;kit(s);if(won(s)||!s.hp.some(h=>h>0))return;
  do{s.cursor=(s.cursor+1)%s.order.length;if(!s.cursor)s.round++;s.active=s.order[s.cursor]}while(s.active<3?!s.hp[s.active]:!s.enemies[s.active-3].hp);
  s.actions=3;s.attacks=0;s.parity=0;s.flourish=false;if(s.active<3){s.raised[s.active]=false;s.ready[s.active]=true;for(const e of s.enemies){e.known[s.active]=Math.max(0,e.known[s.active]-1);if(e.taunt===s.active)e.taunt=-1}}preview=null;retarget(s)}
-function kit(s){s.font??=[4,4,4];s.ready??=[true,true,true];initEnemies(s)}
+function kit(s){s.font??=[4,4,4];s.ready??=[true,true,true];s.shields??=run.picks.map(id=>hasShield(id)?20:null);run.blockEnabled??=[true,true,true];run.interceptEnabled??=[true,true,true];for(let i=0;i<3;i++)if(!shieldUsable(s,i))s.raised[i]=false;initEnemies(s)}
+function hasShield(id){return ['shield','harmful','justice','liberation','bodyguard'].includes(id)}
+function shieldUsable(s,i){return hasShield(run.picks[i])&&(s.shields?.[i]??20)>10}
+function shieldStatus(s,i){const hp=s.shields[i];return hp===0?'Destroyed':hp<=10?'Broken':s.raised[i]?'Raised':'Ready'}
+function guardianResistance(i){return run.picks[i]==='bodyguard'?1+Math.floor(level()/2):0}
+function shieldBlock(s,i,n){
+ if(n<=0||!s.ready[i]||!s.raised[i]||!shieldUsable(s,i)||!run.blockEnabled[i])return n;
+ s.ready[i]=false;const reduced=Math.max(0,n-5);s.shields[i]=Math.max(0,s.shields[i]-reduced);
+ note(s,name(run.picks[i])+' Shield Block · prevented '+Math.min(n,5)+' damage · shield '+s.shields[i]+'/20 HP');
+ if(!shieldUsable(s,i)){s.raised[i]=false;note(s,name(run.picks[i])+' shield '+(s.shields[i]===0?'destroyed':'broken')+'!')}
+ return reduced}
+function hurtHero(s,i,n){const resistance=guardianResistance(i),actual=Math.max(0,n-resistance);
+ if(resistance&&n>0)note(s,name(run.picks[i])+' armor resists '+Math.min(n,resistance)+' physical damage');
+ s.hp[i]=Math.max(0,s.hp[i]-actual);if(actual)note(s,name(run.picks[i])+' takes '+actual+' HP damage');if(!s.hp[i])note(s,name(run.picks[i])+' is down.')}
+function interceptDestination(s,g,t,e){
+ const from=s.pos[g],to=s.pos[t],taunted=e.taunt===g,limit=taunted?3:2;
+ if(dist(from,to)>limit)return null;if(dist(from,to)===1)return {pos:from,stride:false};
+ const adj=[...paths(from,taunted?speed(g):1,0,true)].filter(([p])=>dist(p,to)===1);
+ adj.sort((a,b)=>a[1].cost-b[1].cost||a[0]-b[0]);if(!adj.length)return null;return {pos:adj[0][0],stride:adj[0][1].cost>1}
+}
+function tryIntercept(s,t,n){
+ const e=target(s);for(let g=0;g<3;g++){if(g===t||run.picks[g]!=='bodyguard'||!s.hp[g]||!s.ready[g]||!run.interceptEnabled[g])continue;
+ const m=interceptDestination(s,g,t,e);if(!m)continue;
+ if(n-guardianResistance(g)>=s.hp[g]&&n-guardianResistance(t)<s.hp[t]){note(s,'Guardian conserves Intercept Attack to avoid being downed.');continue}
+ s.ready[g]=false;s.pos[g]=m.pos;note(s,name(run.picks[g])+' Intercept Attack · '+(m.stride?'Strides':'Steps or holds position')+' to protect '+name(run.picks[t])+' · redirects '+n+' damage');hurtHero(s,g,n);return true}
+ return false
+}
+function repairShields(s){for(let i=0;i<3;i++)if(hasShield(run.picks[i])&&s.shields[i]<20){s.shields[i]=20;s.raised[i]=false;note(s,name(run.picks[i])+' shield restored at the room-end checkpoint.')}}
 function dist(p,q){let [x,y]=xy(p),[a,b]=xy(q),dx=Math.abs(x-a),dy=Math.abs(y-b);return Math.max(dx,dy)+Math.floor(Math.min(dx,dy)/2)}
 function clear(p,q){return sight(q,-1,p)!=='Line blocked'}
 function flank(s,i){const a=enemySquare(),p=s.pos[i];return dist(p,a)===1&&s.pos.some((q,j)=>j!==i&&s.hp[j]>0&&run.picks[j]!=='mastermind'&&dist(q,a)===1&&p+q===2*a)}
@@ -275,16 +302,16 @@ function swing(s,i,reaction=false,extraDie=false){const id=run.picks[i],pf=profi
  const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],id==='mastermind'?0:3+attrDelta(i,atkAttr(id)),sneak,-1,false,weaponDice(i));
  let extra=0;if(extraDie&&damage>0){extra=roll(s,pf[3])*(s.lastDegree===3?2:1);note(s,'Proud Nail · '+extra+' extra weapon damage')}
  damageEnemy(s,damage+extra);if(damage>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}
-function defend(s,t,n){if(!n)return;
+function defend(s,t,n){if(!n)return;kit(s);if(tryIntercept(s,t,n))return;
  for(let i=0;i<3;i++){let id=run.picks[i];if(i===t||!s.ready[i]||!s.hp[i]||!['justice','liberation'].includes(id))continue;
  if(dist(s.pos[i],enemySquare())>3||dist(s.pos[i],s.pos[t])>3||!clear(s.pos[i],enemySquare())||!clear(s.pos[i],s.pos[t]))continue;
- n=Math.max(0,n-3);s.ready[i]=false;note(s,name(id)+' guards an ally · resistance 3');
+ const resist=2+level();n=Math.max(0,n-resist);s.ready[i]=false;note(s,name(id)+' guards an ally · resistance '+resist);
  if(id==='justice'){
  if(hasFeat(i,'Nimble Reprisal')&&dist(s.pos[i],enemySquare())===2){const from=s.pos[i],steps=Array.from({length:45},(_,k)=>k).filter(k=>open(k)&&!s.pos.includes(k)&&dist(from,k)===1&&clear(from,k)&&dist(k,enemySquare())===1&&clear(k,enemySquare()));if(steps.length){s.pos[i]=steps[0];note(s,'Nimble Reprisal · '+name(id)+' Steps into reach.')}}
  if(dist(s.pos[i],enemySquare())===1&&target(s).hp>0)swing(s,i,true);
  }
  if(id==='liberation'){const from=s.pos[t],steps=Array.from({length:45},(_,k)=>k).filter(k=>open(k)&&!s.pos.includes(k)&&dist(from,k)===1&&clear(from,k)&&dist(k,enemySquare())>dist(from,enemySquare())).sort((a,b)=>coverAt(b,t)-coverAt(a,t));if(steps.length){s.pos[t]=steps[0];note(s,name(run.picks[t])+' Steps away.')}}
- break} s.hp[t]=Math.max(0,s.hp[t]-n);if(!s.hp[t])note(s,name(run.picks[t])+' is down.')}
+ break} hurtHero(s,t,shieldBlock(s,t,n))}
 function skills(s){kit(s);const i=s.active,id=run.picks[i],p=s.pos[i],list=[];
  if(id==='mastermind'&&!target(s).studied)list.push(['study','Recall Knowledge · 1 action']);
  if(id==='bodyguard'&&target(s).taunt!==i&&dist(p,enemySquare())<=6&&clear(p,enemySquare()))list.push(['taunt','Taunt · 1 action']);
@@ -384,9 +411,14 @@ function hpInfo(s,i){const max=profile(run.picks[i])[0],hp=Math.max(0,Math.min(m
 function hpLabel(s,i){const {hp,max,missing}=hpInfo(s,i);return hp+'/'+max+' HP · '+(missing?missing+' missing':'Full health')}
 function partyPanel(s,combat=false){
  const cards=run.picks.map((id,i)=>{const {hp,max,missing,pct}=hpInfo(s,i),active=combat&&s.active===i&&hp>0,state=hp===0?'Downed':active?'Active turn':missing?missing+' HP missing':'Full health';
- return '<div class="party-member'+(active?' active':'')+(!hp?' down':'')+'" aria-label="'+name(id)+' · '+hpLabel(s,i)+(active?' · Active turn':'')+'"><div class="party-name"><span class="party-number">'+(i+1)+'</span><span>'+name(id)+'</span></div><div class="party-hp"><strong>'+hp+'/'+max+'</strong><small>HP</small></div><div class="hp-track" role="progressbar" aria-label="'+name(id)+' health" aria-valuemin="0" aria-valuemax="'+max+'" aria-valuenow="'+hp+'"><div class="hp-fill'+(pct<=25?' critical':pct<=50?' wounded':'')+'" style="width:'+pct+'%"></div></div><div class="party-detail">'+state+(active&&missing?' · '+missing+' missing':'')+(s.raised[i]&&combat?' · Shield up':'')+'</div></div>'}).join('');
+ return '<div class="party-member'+(active?' active':'')+(!hp?' down':'')+'" aria-label="'+name(id)+' · '+hpLabel(s,i)+(active?' · Active turn':'')+'"><div class="party-name"><span class="party-number">'+(i+1)+'</span><span>'+name(id)+'</span></div><div class="party-hp"><strong>'+hp+'/'+max+'</strong><small>HP</small></div><div class="hp-track" role="progressbar" aria-label="'+name(id)+' health" aria-valuemin="0" aria-valuemax="'+max+'" aria-valuenow="'+hp+'"><div class="hp-fill'+(pct<=25?' critical':pct<=50?' wounded':'')+'" style="width:'+pct+'%"></div></div><div class="party-detail">'+state+(active&&missing?' · '+missing+' missing':'')+(combat&&hp?' · Reaction '+(s.ready[i]?'ready':'spent'):'')+'</div>'+(hasShield(id)?'<div class="party-detail">Shield '+s.shields[i]+'/20 · '+shieldStatus(s,i)+'</div>':'')+'</div>'}).join('');
  return '<section aria-label="Party health"><div class="party-status">'+cards+'</div><p class="party-meta">Potions: '+s.potions+run.picks.map((id,i)=>['healing','harmful'].includes(id)?' · '+name(id)+': '+s.font[i]+' font casts':'').join('')+'</p></section>';
 }
+function defensePanel(s){
+ const i=s.active,id=run.picks[i];if(!hasShield(id))return '';let h='<div class="actions">';
+ h+='<button data-blocktoggle="'+i+'" aria-pressed="'+run.blockEnabled[i]+'">Auto Shield Block: '+(run.blockEnabled[i]?'ON':'OFF')+'</button>';
+ if(id==='bodyguard')h+='<button data-intercepttoggle="'+i+'" aria-pressed="'+run.interceptEnabled[i]+'">Auto Intercept: '+(run.interceptEnabled[i]?'ON':'OFF')+'</button>';
+ return h+'</div><p class="legend">Reactions share one use per turn cycle. Shield Block prevents up to 5 physical damage; excess damages both the shield and hero. Broken shields cannot be raised. Claim loot to restore shields between rooms.</p>'}
 function healingEstimate(s,i){const missing=hpInfo(s,i).missing,lo=9*fontRank(),hi=(spellDie(s.active)+8)*fontRank();return 'Restore '+Math.min(lo,missing)+(Math.min(lo,missing)===Math.min(hi,missing)?'':'–'+Math.min(hi,missing))+' HP'+(missing<hi?' (capped at missing HP)':'')}
 function skillButtons(s){const options=skills(s);return '<div class="heal-actions">'+options.map(([key,label])=>key.startsWith('heal')?'<button data-skill="'+key+'">'+label+'<small>'+hpLabel(s,Number(key[4]))+' · '+healingEstimate(s,Number(key[4]))+'</small></button>':'<button data-skill="'+key+'">'+label+'</button>').join('')+'</div>'}
 function supplyPanel(s){
@@ -437,8 +469,8 @@ function field(){const s=run.battle,r=layout(),win=won(s);
  h+='<button aria-label="'+String.fromCharCode(65+x)+(y+1)+' '+label+'" class="sq t'+(t==='#'?'wall':t==='.'?'floor':t)+(x===8?' edge':'')+(idx>=0?' pawn':'')+(i===here?' current':'')+(opts.has(i)?' available':'')+(dangerSquare(s,i)?' danger':'')+(i===preview||(ei>=0&&ei===s.target)?' selected':'')+'" '+(ei>=0?'data-target="'+ei+'"':opts.has(i)?'data-cell="'+i+'"':'disabled')+'>'+(ei>=0?(tenthRoom()?'W':ninthRoom()?['A','G','R'][ei]:((sixthRoom()||seventhRoom()||eighthRoom())?(ei===0?'A':'G'):fifthRoom()?'C':fourthRoom()?'M':thirdRoom()?'S':secondRoom()?'G':'A')):idx>=0?idx+1:({c:'▰','#':'▦',A:fifthRoom()?'C':fourthRoom()?'M':thirdRoom()?'S':secondRoom()?'G':'A'}[t]||(x===8?'›':'')))+'</button>'}
  h+='</div></div><p class="legend">▰ cover &nbsp; ▦ wall &nbsp; '+(tenthRoom()?'W floor boss':ninthRoom()?'A elite archer · G vanguard · R retainer':eighthRoom()?'A reliquary defender · G sentinel':seventhRoom()?'A elite skirmisher · G iron guard':sixthRoom()?'A lookout archer · G barricade guard':fifthRoom()?'C dungeon captain':fourthRoom()?'M veteran marksman':thirdRoom()?'S vault sentinel':secondRoom()?'G gate guard':'A archer')+' &nbsp; › east · numbered tokens match party cards</p>';
  h+='<p aria-live="polite">'+(selected?'Destination · '+(selected.cost*5)+' ft · '+sight(preview)+(threatenedPath(s,selected).length?' · Reactive Strike risk: '+threatenedPath(s,selected).map(e=>e.name).join(', '):''):'Current square · '+sight(here)+'. Tap a lit square to preview a Stride.')+'</p><div class="actions">'+(selected?'<button data-stride="1">Stride here · 1 action'+(threatenedPath(s,selected).length?' · reaction risk':'')+'</button>':'')+(stepOK(s,preview)?'<button data-step="1">Step here · 1 action · safe</button>':'')+'<button data-end="1">End turn</button></div>';
- const id=run.picks[s.active],mod=profile(id)[2]-penalty(s.attacks,id==='thief'),can=reachOK(s),shield=['shield','harmful','justice','liberation','bodyguard'].includes(id);
- h+='<div class="actions"><button data-strike="1" '+(can?'':'disabled')+'>Strike '+foeName().toLowerCase()+' ('+(mod>=0?'+':'')+mod+')</button>'+(shield?'<button data-raise="1" '+(s.raised[s.active]?'disabled':'')+'>Raise Shield · +2 AC</button>':'')+'</div><p>'+(!can?'Move into weapon reach and line of effect.':'Target AC '+targetAC(s,s.active))+'</p>'+skillButtons(s)+(['healing','harmful'].includes(id)?'<p>Rank '+fontRank()+' font casts left: '+s.font[s.active]+'</p>':'')+('<p class="legend">'+({shield:'Reactive Strike triggers automatically when the archer fires in reach.',reach:'Reactive Strike triggers automatically when the archer fires in reach.',justice:'Automatic reaction: protect an ally in your aura and retaliate if the archer is in reach.',liberation:'Automatic reaction: protect an ally in your aura and Step them away if space permits.',thief:'Flank opposite a melee ally to make the archer off-guard and enable Sneak Attack.',mastermind:'Identify the archer to enable a ranged Sneak Attack.',bodyguard:'Taunt draws enemy attention. Attacks excluding you take −1 and make the enemy off-guard.',harmful:run.floor===0?'This skeletal archer is undead. Harm cannot damage it.':'Harm targets the living archer within 30 ft.',healing:'Heal a wounded ally within 30 ft, or use Heal offensively against undead.'}[id]).replaceAll('archer',foeName().toLowerCase()).replace('gate guard fires','gate guard throws a javelin')+'</p>')+(s.potions>0&&s.hp[s.active]<profile(id)[0]?'<button data-drink="1">Drink minor healing potion · 1 action ('+s.potions+' left · '+hpInfo(s,s.active).missing+' HP missing)</button>':'')+featButtons(s,selected)+combatLog(s,8);return h}
+ const id=run.picks[s.active],mod=profile(id)[2]-penalty(s.attacks,id==='thief'),can=reachOK(s),shield=hasShield(id);
+ h+='<div class="actions"><button data-strike="1" '+(can?'':'disabled')+'>Strike '+foeName().toLowerCase()+' ('+(mod>=0?'+':'')+mod+')</button>'+(shield?'<button data-raise="1" '+(s.raised[s.active]||!shieldUsable(s,s.active)?'disabled':'')+'>'+(shieldUsable(s,s.active)?'Raise Shield · +2 AC':'Shield '+shieldStatus(s,s.active))+'</button>':'')+'</div><p>'+(!can?'Move into weapon reach and line of effect.':'Target AC '+targetAC(s,s.active))+'</p>'+skillButtons(s)+(['healing','harmful'].includes(id)?'<p>Rank '+fontRank()+' font casts left: '+s.font[s.active]+'</p>':'')+('<p class="legend">'+({shield:'Reactive Strike triggers automatically when the archer fires in reach.',reach:'Reactive Strike triggers automatically when the archer fires in reach.',justice:'Automatic reaction: protect an ally in your aura and retaliate if the archer is in reach.',liberation:'Automatic reaction: protect an ally in your aura and Step them away if space permits.',thief:'Flank opposite a melee ally to make the archer off-guard and enable Sneak Attack.',mastermind:'Identify the archer to enable a ranged Sneak Attack.',bodyguard:'Taunt draws enemy attention. Attacks excluding you take −1 and make the enemy off-guard.',harmful:run.floor===0?'This skeletal archer is undead. Harm cannot damage it.':'Harm targets the living archer within 30 ft.',healing:'Heal a wounded ally within 30 ft, or use Heal offensively against undead.'}[id]).replaceAll('archer',foeName().toLowerCase()).replace('gate guard fires','gate guard throws a javelin')+'</p>')+(s.potions>0&&s.hp[s.active]<profile(id)[0]?'<button data-drink="1">Drink minor healing potion · 1 action ('+s.potions+' left · '+hpInfo(s,s.active).missing+' HP missing)</button>':'')+defensePanel(s)+featButtons(s,selected)+combatLog(s,8);return h}
 function swipeOther(s){const e=target(s),from=s.pos[s.active],reach=run.picks[s.active]==='reach'?2:1;if(!reachOK(s))return -1;
  return s.enemies.findIndex(x=>x!==e&&x.hp>0&&dist(x.pos,e.pos)===1&&dist(x.pos,from)<=reach&&clear(from,x.pos))}
 function proudReady(s){const e=target(s);return e.ignoredTaunt===s.active&&e.exposed&&reachOK(s)&&!s.flourish}
@@ -454,8 +486,8 @@ function featButtons(s,selected){const i=s.active,fs=allFeats(i);if(!fs.length)r
 function useFeat(s,k){const i=s.active;
  if(k==='lunge'&&hasFeat(i,'Lunge')&&reachOK(s,1)){note(s,'Lunge');swing(s,i);payAction();return true}
  if(k==='fear'&&hasFeat(i,'Intimidating Strike')&&s.actions>=2&&reachOK(s)){const e=target(s),before=e.hp;swing(s,i);if(e.hp<before&&e.hp>0){e.frightened=Math.max(e.frightened||0,s.lastDegree===3?2:1);note(s,e.name+' · Intimidating Strike · frightened '+e.frightened)}s.actions--;payAction();return true}
- if(k==='advance'&&hasFeat(i,'Defensive Advance')&&s.actions>=2&&!s.flourish){const m=moves().get(preview);if(!m)return false;s.flourish=true;s.raised[i]=true;heroStride(s,m);note(s,'Defensive Advance · shield raised, Stride');if(s.hp[i]>0&&!won(s)&&reachOK(s))swing(s,i);s.actions--;payAction();return true}
- if(k==='shieldtaunt'&&hasFeat(i,'Shielding Taunt')&&!s.flourish&&dist(s.pos[i],enemySquare())<=6&&clear(s.pos[i],enemySquare())){s.flourish=true;s.raised[i]=true;applyTaunt(s,i);note(s,'Shielding Taunt · shield raised');payAction();return true}
+ if(k==='advance'&&hasFeat(i,'Defensive Advance')&&s.actions>=2&&!s.flourish){const m=moves().get(preview);if(!m)return false;s.flourish=true;if(shieldUsable(s,i))s.raised[i]=true;heroStride(s,m);note(s,'Defensive Advance · '+(shieldUsable(s,i)?'shield raised, ':'shield unusable, ')+'Stride');if(s.hp[i]>0&&!won(s)&&reachOK(s))swing(s,i);s.actions--;payAction();return true}
+ if(k==='shieldtaunt'&&hasFeat(i,'Shielding Taunt')&&!s.flourish&&dist(s.pos[i],enemySquare())<=6&&clear(s.pos[i],enemySquare())){s.flourish=true;if(shieldUsable(s,i))s.raised[i]=true;applyTaunt(s,i);note(s,'Shielding Taunt · '+(shieldUsable(s,i)?'shield raised':'shield unusable'));payAction();return true}
  if(k==='proud'&&hasFeat(i,'Proud Nail')&&proudReady(s)){s.flourish=true;swing(s,i,false,true);payAction();return true}
  if(k==='swipe'&&hasFeat(i,'Swipe')&&s.actions>=2&&!s.flourish){const other=swipeOther(s);if(other<0)return false;const original=s.target,id=run.picks[i],pf=profile(id),bonus=pf[2]-penalty(s.attacks),d=roll(s,20);let base=3+attrDelta(i,atkAttr(id));for(let j=0;j<weaponDice(i);j++)base+=roll(s,pf[3]);s.flourish=true;
  for(const j of [original,other]){s.target=j;const ac=targetAC(s,i),deg=outcome(d,bonus,ac),damage=deg>=2?base*(deg===3?2:1):0;note(s,'Swipe → '+foeName()+' · d20 '+d+' + ('+bonus+') vs AC '+ac+' · '+['critical miss','miss','hit','critical hit'][deg]+' · '+damage+' damage');damageEnemy(s,damage)}
@@ -463,7 +495,7 @@ function useFeat(s,k){const i=s.active;
  return false}
 function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
  if(!s.hp.some(h=>h>0)){if(d.retry){run.battle=newRoom();enemyTurn()}return true}if(won(s)){kit(s);s.potions??=s.reward&&!secondRoom()?1:0;
- if(d.claim&&!s.reward){s.reward=true;s.potions+=secondRoom()?2:1}
+ if(d.claim&&!s.reward){s.reward=true;s.potions+=secondRoom()?2:1;repairShields(s)}
  else if(d.levelup)startAdvancement(s);
  else if(run.advancement&&!run.advancement.done&&d.advhero!==undefined){const i=Number(d.advhero);if(Number.isInteger(i)&&i>=0&&i<3){run.advancement.hero=i;run.advancement.all=false}}
  else if(run.advancement&&!run.advancement.done&&d.allfeats)run.advancement.all=!run.advancement.all;
@@ -495,8 +527,8 @@ function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
  else if(ninthRoom()&&s.reward&&d.tenth)enterFollowing(s,10);
  else if(d.potion!==undefined)drink(s,Number(d.potion));
  else if(d.next&&s.reward&&(run.room||1)===1){run.entry={hp:s.hp.slice(),font:s.font.slice(),potions:s.potions};run.room=2;preview=null;run.battle=newRoom();enemyTurn()}return true}
- kit(s);if(d.target!==undefined){const i=Number(d.target);if(Number.isInteger(i)&&s.enemies[i]?.hp>0){s.target=i;preview=null}return true}if(d.special){useFeat(s,d.special);return true}if(d.drink){if(drink(s,s.active))payAction();return true}if(d.skill){useSkill(s,d.skill);return true}if(d.strike&&reachOK(s)){swing(s,s.active);payAction();return true}
- if(d.raise&&!s.raised[s.active]&&['shield','harmful','justice','liberation','bodyguard'].includes(run.picks[s.active])){s.raised[s.active]=true;payAction();return true}
+ kit(s);if(d.blocktoggle!==undefined){const i=Number(d.blocktoggle);if(i===s.active&&hasShield(run.picks[i]))run.blockEnabled[i]=!run.blockEnabled[i];return true}if(d.intercepttoggle!==undefined){const i=Number(d.intercepttoggle);if(i===s.active&&run.picks[i]==='bodyguard')run.interceptEnabled[i]=!run.interceptEnabled[i];return true}if(d.target!==undefined){const i=Number(d.target);if(Number.isInteger(i)&&s.enemies[i]?.hp>0){s.target=i;preview=null}return true}if(d.special){useFeat(s,d.special);return true}if(d.drink){if(drink(s,s.active))payAction();return true}if(d.skill){useSkill(s,d.skill);return true}if(d.strike&&reachOK(s)){swing(s,s.active);payAction();return true}
+ if(d.raise&&!s.raised[s.active]&&shieldUsable(s,s.active)){s.raised[s.active]=true;payAction();return true}
  if(d.cell!==undefined){let i=Number(d.cell);if(moves().has(i))preview=i}
  else if(d.step&&stepOK(s,preview)){s.pos[s.active]=preview;note(s,name(run.picks[s.active])+' Steps safely.');payAction()}
  else if(d.stride){const m=moves().get(preview);if(m){heroStride(s,m);payAction()}}
