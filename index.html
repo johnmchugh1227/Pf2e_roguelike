@@ -234,12 +234,12 @@ function baseEnemySpecs(){const map=layout().rows.join('');return tenthRoom()?[{
  [{name:baseFoeName(),pos:map.indexOf('A'),max:foeMax(),ac:foeAC(),attack:fifthRoom()?10:fourthRoom()?9:thirdRoom()?8:6,init:fifthRoom()?9:fourthRoom()?8:6,fort:fifthRoom()?9:fourthRoom()?7:thirdRoom()?7:5,guard:guardFight()}]}
 // Original encounter profiles are retained as the balance baseline. Monster templates are adaptations, not copied stat blocks.
 const generalBestiary=[
- ['rat','Giant Rat','Fodder','Fast, agile bites',true],
+ ['rat','Giant Rat','Fodder','Fast, agile bites; critical bite causes bleeding',true],
  ['ratSwarm','Rat Swarm','Swarm','Area attacks and resistance to individual Strikes',false],
- ['spider','Giant Spider','Controller','Webs; venom planned',true],
+ ['spider','Giant Spider','Controller','Webs and staged venom',true],
  ['bat','Giant Bat','Skirmisher','Flying hit-and-run attacks',false],
  ['wolf','Wolf','Flanker','Pack attacks and knockdown',true],
- ['centipede','Giant Centipede','Disabler','Venom',false],
+ ['centipede','Giant Centipede','Disabler','Staged venom; severe poison makes targets off-guard',true],
  ['ooze','Ooze','Tank','Critical hit and precision immunity',false],
  ['mimic','Mimic','Ambusher','Adhesive attacks',false],
  ['ogre','Ogre','Bruiser','Large footprint and heavy attacks',false],
@@ -269,7 +269,7 @@ const environmentBestiary={
  shadowRealm:['shadow','wraith','nightwalker']
 };
 const monsterTypes={
- rat:{label:'Giant rat',info:'Fast movement; agile bites with reduced multiple attack penalty.',reach:1,meleeOnly:true,move:6,agile:true,die:4,flat:2,reflexShift:2},
+ rat:{label:'Giant rat',info:'Fast movement; agile bites. A critical bite causes persistent bleed 1d4.',bleedCrit:4,reach:1,meleeOnly:true,move:6,agile:true,die:4,flat:2,reflexShift:2},
  wolf:{label:'Wolf',info:'Pack Attack adds 2 damage while an ally threatens the victim. A successful bite can spend an action to knock the victim prone.',reach:1,meleeOnly:true,move:6,pack:true,knockdown:true,die:6,flat:2,reflexShift:1},
  archer:{label:'Archer',info:'Maintains distance from melee threats; ranged attacks provoke nearby fighters.',rangedKite:true,die:6,flat:1},
  shieldbearer:{label:'Shieldbearer',info:'Raises a shield (+2 AC) and blocks physical damage using Hardness 3 and shield durability.',reach:1,meleeOnly:true,shield:12,die:6,flat:2},
@@ -278,7 +278,8 @@ const monsterTypes={
  acolyte:{label:'Acolyte',info:'Has two limited healing casts. Prioritize this enemy before it restores its wounded allies.',healCasts:2,die:4,flat:0},
  skeleton:{label:'Skeleton',info:'Resists piercing/slashing 3; immune to mental effects. Bludgeoning bypasses resistance.',undead:true,mindless:true,resist:{piercing:3,slashing:3},reflexShift:2,fortShift:-1},
  zombie:{label:'Zombie',info:'Slowed 1; weak to slashing 3 and vitality 3; no reactions; immune to mental effects.',undead:true,mindless:true,slow:1,noReaction:true,weak:{slashing:3,vitality:3},reach:1,meleeOnly:true,reflexShift:-3,fortShift:1},
- spider:{label:'Giant spider',info:'Web attack immobilizes a hero until Escape. Fangs attack adjacent heroes.',web:true,reach:1,meleeOnly:true,reflexShift:2},
+ centipede:{label:'Giant centipede',info:'Venom on damaging bites; Fortitude saves determine stages. Stage 3 makes the victim off-guard.',venom:'centipede',reach:1,meleeOnly:true,move:5,die:6,flat:1,agile:true,reflexShift:2},
+ spider:{label:'Giant spider',info:'Webs immobilize heroes until Escape. Damaging fangs inject venom.',venom:'spider',web:true,reach:1,meleeOnly:true,reflexShift:2},
  hobgoblin:{label:'Hobgoblin',info:'Formation: +1 AC and saves while adjacent to two allies.',formation:true}
 };
 function monsterize(e,type,name){const m=monsterTypes[type];return {...e,...m,type,name,undead:!!m.undead,mindless:!!m.mindless,resist:m.resist||{},weak:m.weak||{},slow:m.slow||0,noReaction:!!m.noReaction,reach:m.reach??(e.guard?2:1),meleeOnly:!!m.meleeOnly,web:!!m.web,formation:!!m.formation,reflex:Math.max(0,e.fort-1+(m.reflexShift||0)),fort:e.fort+(m.fortShift||0),will:Math.max(0,e.fort-2),perception:e.init}}
@@ -293,9 +294,10 @@ function themedEnemySpecs(){
  if(run.floor===2&&room>=6)return es.map(e=>monsterize(e,'hobgoblin',e.guard?'Hobgoblin soldier':'Hobgoblin archer'));
  return es}
 function seedPick(pool,room,slot){let n=(run.seed^Math.imul(room,0x9e3779b9)^Math.imul(run.floor+1,0x85ebca6b)^Math.imul(slot+1,0xc2b2ae35))>>>0;n=Math.imul(n^(n>>>16),0x7feb352d);n=Math.imul(n^(n>>>15),0x846ca68b);return pool[((n^(n>>>16))>>>0)%pool.length]}
-function generalMonster(e,id){const m=monsterTypes[id],melee=['rat','wolf','spider','shieldbearer','spearman','assassin'].includes(id),name=m.label;
+function generalMonster(e,id){const m=monsterTypes[id],melee=['rat','wolf','spider','centipede','shieldbearer','spearman','assassin'].includes(id),name=m.label;
  const p=monsterize({...e,guard:melee},id,name);p.guard=melee;p.undead=false;
  if(id==='rat')Object.assign(p,{max:Math.max(8,e.max-6),ac:e.ac-1});
+ if(id==='centipede')Object.assign(p,{max:Math.max(10,e.max-5),ac:e.ac-1});
  if(id==='wolf')Object.assign(p,{max:Math.max(12,e.max-3)});
  if(id==='shieldbearer')Object.assign(p,{max:Math.max(12,e.max-3),shieldHP:12});
  if(id==='acolyte')Object.assign(p,{max:Math.max(10,e.max-5),attack:e.attack-1});
@@ -305,7 +307,7 @@ function generalMonster(e,id){const m=monsterTypes[id],melee=['rat','wolf','spid
 function enemySpecs(){const es=themedEnemySpecs(),room=run.room||1;if(room===10)return es;
  const slots=run.floor===0?{4:0,6:0,9:2}:run.floor===1?{1:0,2:0,4:0,6:1,8:1,9:2}:{1:0,3:0,4:0,5:0,7:0,8:1,9:2};
  const slot=slots[room];if(slot===undefined||!es[slot])return es;
- const pool=room<=2?['rat','archer','wolf']:room<=5?['rat','spider','wolf','archer','shieldbearer','spearman']:['wolf','spider','archer','shieldbearer','spearman','assassin','acolyte'];
+ const pool=room<=2?['rat','archer','wolf']:room<=5?['rat','spider','centipede','wolf','archer','shieldbearer','spearman']:['wolf','spider','centipede','archer','shieldbearer','spearman','assassin','acolyte'];
  es[slot]=generalMonster(baseEnemySpecs()[slot],seedPick(pool,room,slot));return es}
 function isUndead(e){return e.undead??(run.floor===0)}
 function enemyShieldBonus(e){return e.shieldRaised&&e.shieldHP>6?2:0}
@@ -342,10 +344,36 @@ function strikeRoll(s,title,bonus,ac,die,flat,sneak=false,defender=-1,melee=fals
 function coverAt(i,who,heroAttack=false){const view=sight(i,who,enemySquare(),heroAttack);return view==='Line blocked'?Infinity:view.startsWith('Cover')?2:view.startsWith('Lesser')?1:0}
 function reachOK(s,extra=0){if(target(s).hp<=0)return false;const i=s.active,id=run.picks[i],[x,y]=xy(s.pos[i]),[a,b]=xy(enemySquare());const dist=Math.max(Math.abs(x-a),Math.abs(y-b));return Number.isFinite(coverAt(s.pos[i],i))&&(id==='mastermind'||dist<=(id==='reach'?2:1)+extra)}
 function penalty(n,agile=false){return Math.min(2,n)*(agile?4:5)}
-function advance(){const s=run.battle;kit(s);if(won(s)||!s.hp.some(h=>h>0))return;if(s.active<3)expireFeint(s,s.active);if(s.active<3)for(const e of s.enemies)if(e.grabbedBy===s.active&&s.heroTurns[s.active]>=e.grabExpires)releaseGrab(e,s,'grapple expires');
+function advance(){const s=run.battle;kit(s);if(won(s)||!s.hp.some(h=>h>0))return;if(s.active<3&&s.hp[s.active]>0)endAfflictions(s,s.active);if(!s.hp.some(Boolean))return;if(s.active<3)expireFeint(s,s.active);if(s.active<3)for(const e of s.enemies)if(e.grabbedBy===s.active&&s.heroTurns[s.active]>=e.grabExpires)releaseGrab(e,s,'grapple expires');
  do{s.cursor=(s.cursor+1)%s.order.length;if(!s.cursor)s.round++;s.active=s.order[s.cursor]}while(s.active<3?!s.hp[s.active]:!s.enemies[s.active-3].hp);
  s.actions=3;s.attacks=0;s.webEscapeBlocked=-1;s.parity=0;s.flourish=false;if(s.active<3){s.heroTurns[s.active]++;s.raised[s.active]=false;s.ready[s.active]=true;for(const e of s.enemies){e.known[s.active]=Math.max(0,e.known[s.active]-1);if(e.taunt===s.active)e.taunt=-1}}preview=null;retarget(s)}
-function kit(s){s.webbed??=[null,null,null];s.prone??=[false,false,false];s.heroTurns??=[0,0,0];s.font??=[4,4,4];s.ready??=[true,true,true];s.shields??=run.picks.map(id=>hasShield(id)?20:null);run.blockEnabled??=[true,true,true];run.interceptEnabled??=[true,true,true];for(let i=0;i<3;i++)if(!shieldUsable(s,i))s.raised[i]=false;initEnemies(s);for(const e of s.enemies)if(e.grabbedBy>=0&&(!s.hp[e.grabbedBy]||s.pos[e.grabbedBy]!==e.grabOrigin||!e.hp))releaseGrab(e,s,'grip released')}
+function kit(s){s.venom??=[null,null,null];s.persistent??=[{},{},{}];s.webbed??=[null,null,null];s.prone??=[false,false,false];s.heroTurns??=[0,0,0];s.font??=[4,4,4];s.ready??=[true,true,true];s.shields??=run.picks.map(id=>hasShield(id)?20:null);run.blockEnabled??=[true,true,true];run.interceptEnabled??=[true,true,true];for(let i=0;i<3;i++)if(!shieldUsable(s,i))s.raised[i]=false;initEnemies(s);for(const e of s.enemies)if(e.grabbedBy>=0&&(!s.hp[e.grabbedBy]||s.pos[e.grabbedBy]!==e.grabOrigin||!e.hp))releaseGrab(e,s,'grip released')}
+// Room-local prototype afflictions; saves and damage never use the physical reaction pipeline.
+const venomProfiles={spider:{label:'Spider venom',dice:[4,6,6],maxTicks:3},centipede:{label:'Centipede venom',dice:[4,6,8],maxTicks:4}};
+function fortitudeMod(i){const id=run.picks[i],expert=['shield','reach','bodyguard','harmful','justice','liberation'].includes(id);return level()+(expert?4:2)+attrValue(i,2)}
+function medicineMod(i){return level()+2+attrValue(i,4)}
+function directDamage(s,i,n,type){const before=s.hp[i];s.hp[i]=Math.max(0,before-n);note(s,name(run.picks[i])+' takes '+(before-s.hp[i])+' '+type+' damage');if(before>0&&!s.hp[i])note(s,name(run.picks[i])+' is down.');return before-s.hp[i]}
+function venomDamage(s,i){const v=s.venom[i];if(v&&s.hp[i]>0)directDamage(s,i,roll(s,venomProfiles[v.kind].dice[v.stage-1]),'poison (stage '+v.stage+')')}
+function inflictVenom(s,i,e){
+ if(!e.venom||!s.hp[i])return false;const dc=Math.max(12,10+e.attack-2),mod=fortitudeMod(i),d=roll(s,20),deg=outcome(d,mod,dc);
+ note(s,venomProfiles[e.venom].label+' · '+name(run.picks[i])+' Fortitude '+(d+mod)+' vs DC '+dc+' · '+['critical failure','failure','success','critical success'][deg]);
+ if(deg>=2)return false;
+ const old=s.venom[i];if(old){old.stage=Math.min(3,old.stage+(deg===0?2:1));if(dc>old.dc){old.dc=dc;old.kind=e.venom}note(s,name(run.picks[i])+' poison worsens to stage '+old.stage);return true}
+ s.venom[i]={kind:e.venom,dc,stage:deg===0?2:1,ticks:0,treated:false,saveBonus:0};venomDamage(s,i);return true}
+function addPersistent(s,i,type,die,flat=0){const old=s.persistent[i][type];if(!old||die/2+flat>old.die/2+old.flat){s.persistent[i][type]={die,flat,dc:15};note(s,name(run.picks[i])+' gains persistent '+type+' 1d'+die+(flat?'+'+flat:''))}}
+function endAfflictions(s,i){
+ const v=s.venom[i];if(v&&s.hp[i]>0){v.ticks++;const d=roll(s,20),mod=fortitudeMod(i)+(v.saveBonus||0),deg=outcome(d,mod,v.dc);v.treated=false;v.saveBonus=0;
+ v.stage=Math.max(0,Math.min(3,v.stage+[2,1,-1,-2][deg]));
+ note(s,name(run.picks[i])+' poison save · '+(d+mod)+' vs DC '+v.dc+' · stage '+v.stage);
+ if(v.stage===0){s.venom[i]=null;note(s,name(run.picks[i])+' recovers from venom')}else{venomDamage(s,i);if(v.ticks>=venomProfiles[v.kind].maxTicks){s.venom[i]=null;note(s,name(run.picks[i])+' venom duration ends')}}
+ }
+ for(const [type,p] of Object.entries(s.persistent[i])){if(!s.hp[i])break;directDamage(s,i,roll(s,p.die)+p.flat,'persistent '+type);const d=roll(s,20);note(s,name(run.picks[i])+' persistent '+type+' recovery · '+d+' vs '+p.dc);if(d>=p.dc){delete s.persistent[i][type];note(s,name(run.picks[i])+' persistent '+type+' ends')}}
+}
+function treatPoison(s,t){const i=s.active,v=s.venom[t];if(!v||v.treated||!['healing','harmful'].includes(run.picks[i])||!s.hp[t]||dist(s.pos[i],s.pos[t])>1)return false;
+ const d=roll(s,20),mod=medicineMod(i),deg=outcome(d,mod,v.dc);v.treated=true;v.saveBonus=[-2,0,2,4][deg];note(s,name(run.picks[i])+' Treat Poison → '+name(run.picks[t])+' · '+(d+mod)+' vs DC '+v.dc+' · next Fortitude save '+(v.saveBonus>=0?'+':'')+v.saveBonus);payAction();return true}
+function aidPersistent(s,t){const i=s.active,types=Object.keys(s.persistent[t]||{});if(s.actions<2||!types.length||!s.hp[t]||dist(s.pos[i],s.pos[t])>1)return false;
+ const type=types[0],d=roll(s,20);note(s,name(run.picks[i])+' assists '+name(run.picks[t])+' against persistent '+type+' · flat check '+d+' vs 10');if(d>=10)delete s.persistent[t][type];s.actions--;payAction();return true}
+function clearAfflictions(s){for(let i=0;i<3;i++){if(s.venom[i]||Object.keys(s.persistent[i]).length)note(s,name(run.picks[i])+' room-end recovery clears lingering damage effects');s.venom[i]=null;s.persistent[i]={}}}
 function hasShield(id){return ['shield','harmful','justice','liberation','bodyguard'].includes(id)}
 function shieldUsable(s,i){return hasShield(run.picks[i])&&(s.shields?.[i]??20)>10}
 function shieldStatus(s,i){const hp=s.shields[i];return hp===0?'Destroyed':hp<=10?'Broken':s.raised[i]?'Raised':'Ready'}
@@ -356,9 +384,9 @@ function shieldBlock(s,i,n){
  note(s,name(run.picks[i])+' Shield Block · prevented '+Math.min(n,5)+' damage · shield '+s.shields[i]+'/20 HP');
  if(!shieldUsable(s,i)){s.raised[i]=false;note(s,name(run.picks[i])+' shield '+(s.shields[i]===0?'destroyed':'broken')+'!')}
  return reduced}
-function hurtHero(s,i,n){const resistance=guardianResistance(i),actual=Math.max(0,n-resistance);
+function hurtHero(s,i,n){const before=s.hp[i],resistance=guardianResistance(i),actual=Math.max(0,n-resistance);
  if(resistance&&n>0)note(s,name(run.picks[i])+' armor resists '+Math.min(n,resistance)+' physical damage');
- s.hp[i]=Math.max(0,s.hp[i]-actual);if(actual)note(s,name(run.picks[i])+' takes '+actual+' HP damage');if(!s.hp[i])note(s,name(run.picks[i])+' is down.')}
+ s.hp[i]=Math.max(0,s.hp[i]-actual);if(actual)note(s,name(run.picks[i])+' takes '+actual+' HP damage');if(!s.hp[i])note(s,name(run.picks[i])+' is down.');return {i,damage:before-s.hp[i]}}
 function interceptDestination(s,g,t,e){
  const from=s.pos[g],to=s.pos[t],taunted=e.taunt===g,limit=taunted?3:2;
  if(dist(from,to)>limit)return null;if(dist(from,to)===1)return {pos:from,stride:false};if(s.webbed?.[g]||s.prone?.[g])return null;
@@ -369,7 +397,7 @@ function tryIntercept(s,t,n){
  const e=target(s);for(let g=0;g<3;g++){if(g===t||run.picks[g]!=='bodyguard'||!s.hp[g]||!s.ready[g]||!run.interceptEnabled[g])continue;
  const m=interceptDestination(s,g,t,e);if(!m)continue;
  if(n-guardianResistance(g)>=s.hp[g]&&n-guardianResistance(t)<s.hp[t]){note(s,'Guardian conserves Intercept Attack to avoid being downed.');continue}
- s.ready[g]=false;s.pos[g]=m.pos;note(s,name(run.picks[g])+' Intercept Attack · '+(m.stride?'Strides':'Steps or holds position')+' to protect '+name(run.picks[t])+' · redirects '+n+' damage');hurtHero(s,g,n);return true}
+ s.ready[g]=false;s.pos[g]=m.pos;note(s,name(run.picks[g])+' Intercept Attack · '+(m.stride?'Strides':'Steps or holds position')+' to protect '+name(run.picks[t])+' · redirects '+n+' damage');return hurtHero(s,g,n)}
  return false
 }
 function repairShields(s){for(let i=0;i<3;i++)if(hasShield(run.picks[i])&&s.shields[i]<20){s.shields[i]=20;s.raised[i]=false;note(s,name(run.picks[i])+' shield restored at the room-end checkpoint.')}}
@@ -398,7 +426,7 @@ function flankPreview(s,pos){const partners=flankPartners(s,s.active,target(s),p
  return (partners.length?' · Flanking with '+partners.map(i=>name(run.picks[i])).join(', ')+' (target off-guard)':'')+(risk?' · Warning: enemies flank this square':'')}
 function flankNote(s,i){const es=s.enemies.filter(e=>flankPartners(s,i,e).length);if(es.length)note(s,name(run.picks[i])+' flanks '+es.map(e=>e.name).join(', '))}
 function off(s,i){return (run.picks[i]!=='mastermind'&&!!target(s).feints?.[i])||target(s).prone||target(s).grabbedBy>=0||target(s).known[i]>0||target(s).exposed||flank(s,i)||(hasFeat(i,'Dread Striker')&&target(s).frightened>0)}
-function heroOffGuard(s,i,melee){return !!(s.prone?.[i]||feintBackfire(s,i,melee)||(melee&&(enemyFlank(s,i)||target(s).assassinFeint===i)))}
+function heroOffGuard(s,i,melee){return !!(s.venom?.[i]?.stage===3||s.prone?.[i]||feintBackfire(s,i,melee)||(melee&&(enemyFlank(s,i)||target(s).assassinFeint===i)))}
 function heroAC(s,i,cover,melee=false){return profile(run.picks[i])[1]+Math.max(cover,s.raised[i]?2:0)-(heroOffGuard(s,i,melee)?2:0)}
 function enemyAttackPenalty(e){return (e.frightened||0)+(e.prone?2:0)}
 function feintBackfire(s,i,melee){return melee&&!!target(s).feintBackfire?.[i]}
@@ -415,7 +443,7 @@ function swing(s,i,reaction=false,extraDie=false){const id=run.picks[i],pf=profi
  const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],id==='mastermind'?0:3+attrDelta(i,atkAttr(id)),sneak,-1,false,weaponDice(i));
  let extra=0;if(extraDie&&damage>0){extra=roll(s,pf[3])*(s.lastDegree===3?2:1);note(s,'Proud Nail · '+extra+' extra weapon damage')}
  consumeFeint(e,i);const dealt=damageEnemy(s,damage+extra,weaponType(id));if(dealt>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){if(e.mindless)note(s,e.name+' is immune to Brutal Beating fear');else{e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}}
-function defend(s,t,n){if(!n)return;kit(s);if(tryIntercept(s,t,n))return;
+function defend(s,t,n){if(!n)return {i:t,damage:0};kit(s);const intercepted=tryIntercept(s,t,n);if(intercepted)return intercepted;
  for(let i=0;i<3;i++){let id=run.picks[i];if(i===t||!s.ready[i]||!s.hp[i]||!['justice','liberation'].includes(id))continue;
  if(dist(s.pos[i],enemySquare())>3||dist(s.pos[i],s.pos[t])>3||!clear(s.pos[i],enemySquare())||!clear(s.pos[i],s.pos[t]))continue;
  const resist=2+level();n=Math.max(0,n-resist);s.ready[i]=false;note(s,name(id)+' guards an ally · resistance '+resist);
@@ -424,7 +452,7 @@ function defend(s,t,n){if(!n)return;kit(s);if(tryIntercept(s,t,n))return;
  if(dist(s.pos[i],enemySquare())===1&&target(s).hp>0)swing(s,i,true);
  }
  if(id==='liberation'&&!s.webbed?.[t]&&!s.prone?.[t]){const from=s.pos[t],steps=Array.from({length:45},(_,k)=>k).filter(k=>open(k)&&!s.pos.includes(k)&&dist(from,k)===1&&clear(from,k)&&dist(k,enemySquare())>dist(from,enemySquare())).sort((a,b)=>coverAt(b,t)-coverAt(a,t));if(steps.length){s.pos[t]=steps[0];note(s,name(run.picks[t])+' Steps away.')}}
- break} hurtHero(s,t,shieldBlock(s,t,n))}
+ break} return hurtHero(s,t,shieldBlock(s,t,n))}
 function releaseGrab(e,s,why){if(!(e.grabbedBy>=0))return;e.grabbedBy=-1;e.restrained=false;note(s,e.name+' · '+why)}
 function holdEnemy(s,i){return s.enemies.find(e=>e.hp>0&&e.grabbedBy===i)}
 function skillMod(i,k){const id=run.picks[i],a=['feint','demoralize'].includes(k)?5:0,trained=k==='feint'?['thief','mastermind','justice','liberation'].includes(id):k==='demoralize'?['shield','reach','justice','liberation','bodyguard','harmful','thief'].includes(id):['shield','reach','justice','liberation','bodyguard','thief'].includes(id);return attrValue(i,a)+(trained?level()+2:0)}
@@ -451,6 +479,7 @@ function standHero(s){const i=s.active,save=s.target;if(!s.prone[i])return false
  s.target=save;s.prone[i]=false;note(s,name(run.picks[i])+' Stands');payAction();return true}
 function skills(s){kit(s);const i=s.active,id=run.picks[i],p=s.pos[i],list=[];
  for(const k of ['trip','grapple','demoralize','feint'])if(canManeuver(s,k)){const mod=skillMod(i,k)-(['trip','grapple'].includes(k)?penalty(s.attacks):0);list.push([k,k[0].toUpperCase()+k.slice(1)+' · '+(mod>=0?'+':'')+mod+' vs DC '+skillDC(target(s),k)+' · 1 action'])}
+ for(let t=0;t<3;t++){if(s.hp[t]<=0||dist(p,s.pos[t])>1)continue;if(['healing','harmful'].includes(id)&&s.venom[t]&&!s.venom[t].treated)list.push(['treat'+t,'Treat Poison: '+name(run.picks[t])+' · 1 action']);if(s.actions>=2&&Object.keys(s.persistent[t]).length)list.push(['aidpersist'+t,'Assist recovery: '+name(run.picks[t])+' · 2 actions'])}
  if(id==='mastermind'&&!target(s).studied)list.push(['study','Recall Knowledge · 1 action']);
  if(id==='bodyguard'&&target(s).taunt!==i&&dist(p,enemySquare())<=6&&clear(p,enemySquare()))list.push(['taunt','Taunt · 1 action']);
  if(s.actions>=2&&s.font[i]>0){
@@ -458,6 +487,7 @@ function skills(s){kit(s);const i=s.active,id=run.picks[i],p=s.pos[i],list=[];
  if(((id==='healing'&&isUndead(target(s)))||(id==='harmful'&&!isUndead(target(s))))&&dist(p,enemySquare())<=6&&clear(p,enemySquare()))list.push(['spell',(id==='healing'?'Damage undead with Heal':'Harm '+foeName().toLowerCase())+' · 2 actions'])}
  return list}
 function useSkill(s,k){if(!skills(s).some(([key])=>key===k))return;const i=s.active;
+ if(k.startsWith('treat')){treatPoison(s,Number(k.slice(5)));return}if(k.startsWith('aidpersist')){aidPersistent(s,Number(k.slice(10)));return}
  if(['trip','grapple','demoralize','feint'].includes(k)){maneuver(s,k);return}
  if(k==='study'){const d=roll(s,20),deg=outcome(d,7,15);target(s).studied=true;target(s).known[i]=deg===3?10:deg===2?1:0;note(s,'Recall Knowledge · '+(d+7)+' vs 15 · '+(deg>=2?foeName()+' off-guard to you':'failed'))}
  else if(k==='taunt'){applyTaunt(s,i)}
@@ -510,9 +540,9 @@ function enemyTurn(){const s=run.battle;kit(s);const saved=s.target;
  for(let i=0;!melee&&i<3&&e.hp>0;i++){const id=run.picks[i];if(['shield','reach'].includes(id)&&s.hp[i]&&s.ready[i]&&inReach(s.pos[i],e.pos,id==='reach'?2:1)&&clear(s.pos[i],e.pos)){s.ready[i]=false;swing(s,i,true)}}if(!e.hp)break;
  const taunted=tauntPenalty(s,e,[t]);if(e.taunt===t)note(s,e.name+' focuses on the taunting '+name(run.picks[t]));if(melee&&enemyFlank(s,t,e))note(s,e.name+' flanks '+name(run.picks[t])+' · off-guard');
  const pack=melee?packDamage(s,e,t):0,precision=e.assassin&&melee&&heroOffGuard(s,t,true)?2:0;
- const n=strikeRoll(s,e.name+(e.web?' · fangs':e.type==='zombie'?' · slam':e.type==='wolf'?' · bite':e.type==='rat'?' · bite':e.guard?(melee?' · melee':' · javelin'):'')+(pack?' · Pack Attack':'')+(precision?' · precision':'')+' → '+name(run.picks[t]),e.attack-penalty(shot,!!e.agile)-(taunted?1:0)-enemyAttackPenalty(e),ac,e.die??(melee?8:6),(e.flat??(melee?2:0))+pack+precision,false,t,melee);
+ const n=strikeRoll(s,e.name+(e.web||e.type==='centipede'?' · fangs':e.type==='zombie'?' · slam':e.type==='wolf'?' · bite':e.type==='rat'?' · bite':e.guard?(melee?' · melee':' · javelin'):'')+(pack?' · Pack Attack':'')+(precision?' · precision':'')+' → '+name(run.picks[t]),e.attack-penalty(shot,!!e.agile)-(taunted?1:0)-enemyAttackPenalty(e),ac,e.die??(melee?8:6),(e.flat??(melee?2:0))+pack+precision,false,t,melee);
  if(e.assassinFeint===t)e.assassinFeint=-1;
- const oldHP=s.hp[t];defend(s,t,n);
+ const oldHP=s.hp[t],critical=s.lastDegree===3,injury=defend(s,t,n);if(melee&&injury?.damage>0&&s.hp[injury.i]>0){if(e.venom)inflictVenom(s,injury.i,e);if(e.bleedCrit&&critical)addPersistent(s,injury.i,'bleed',e.bleedCrit)}
  if(e.hp>0&&e.knockdown&&melee&&n>0&&s.hp[t]>0&&s.hp[t]<oldHP&&actions>0&&!s.prone[t]&&inReach(e.pos,s.pos[t],1)){actions--;s.prone[t]=true;note(s,e.name+' spends an action to Knockdown '+name(run.picks[t]))}
  }}
  e.assassinFeint=-1;if(e.boss&&e.hp>0&&!e.restrained){e.bossTurns=(e.bossTurns||0)+1;if(e.bossTurns%2===1){e.charging=true;note(s,e.name+' prepares a sweeping strike. Move out of the threatened area!')}}if(e.frightened)e.frightened--;if(won(s)||!s.hp.some(h=>h>0))break;advance();
@@ -583,7 +613,7 @@ function hpInfo(s,i){const max=profile(run.picks[i])[0],hp=Math.max(0,Math.min(m
 function hpLabel(s,i){const {hp,max,missing}=hpInfo(s,i);return hp+'/'+max+' HP · '+(missing?missing+' missing':'Full health')}
 function partyPanel(s,combat=false){
  const cards=run.picks.map((id,i)=>{const {hp,max,missing,pct}=hpInfo(s,i),active=combat&&s.active===i&&hp>0,state=hp===0?'Downed':active?'Active turn':missing?missing+' HP missing':'Full health';
- return '<div class="party-member'+(active?' active':'')+(!hp?' down':'')+'" aria-label="'+name(id)+' · '+hpLabel(s,i)+(active?' · Active turn':'')+'"><div class="party-name"><span class="party-number">'+(i+1)+'</span><span>'+name(id)+'</span></div><div class="party-hp"><strong>'+hp+'/'+max+'</strong><small>HP</small></div><div class="hp-track" role="progressbar" aria-label="'+name(id)+' health" aria-valuemin="0" aria-valuemax="'+max+'" aria-valuenow="'+hp+'"><div class="hp-fill'+(pct<=25?' critical':pct<=50?' wounded':'')+'" style="width:'+pct+'%"></div></div><div class="party-detail">'+state+(active&&missing?' · '+missing+' missing':'')+(combat&&hp?' · Reaction '+(s.ready[i]?'ready':'spent'):'')+(s.prone[i]?' · Prone':'')+(s.webbed[i]?' · Webbed (Escape '+s.webbed[i].dc+')':'')+(holdEnemy(s,i)?' · Grabbing '+holdEnemy(s,i).name:'')+(combat&&flankedHero(s,i)?' · Flanked':'')+(s.enemies.some(e=>e.hp>0&&e.feintBackfire?.[i])?' · Feint backfired':'')+'</div>'+(hasShield(id)?'<div class="party-detail">Shield '+s.shields[i]+'/20 · '+shieldStatus(s,i)+'</div>':'')+'</div>'}).join('');
+ return '<div class="party-member'+(active?' active':'')+(!hp?' down':'')+'" aria-label="'+name(id)+' · '+hpLabel(s,i)+(active?' · Active turn':'')+'"><div class="party-name"><span class="party-number">'+(i+1)+'</span><span>'+name(id)+'</span></div><div class="party-hp"><strong>'+hp+'/'+max+'</strong><small>HP</small></div><div class="hp-track" role="progressbar" aria-label="'+name(id)+' health" aria-valuemin="0" aria-valuemax="'+max+'" aria-valuenow="'+hp+'"><div class="hp-fill'+(pct<=25?' critical':pct<=50?' wounded':'')+'" style="width:'+pct+'%"></div></div><div class="party-detail">'+state+(active&&missing?' · '+missing+' missing':'')+(combat&&hp?' · Reaction '+(s.ready[i]?'ready':'spent'):'')+(s.prone[i]?' · Prone':'')+(s.venom[i]?' · '+venomProfiles[s.venom[i].kind].label+' stage '+s.venom[i].stage+' (DC '+s.venom[i].dc+')':'')+Object.entries(s.persistent[i]).map(([k,v])=>' · Persistent '+k+' 1d'+v.die).join('')+(s.webbed[i]?' · Webbed (Escape '+s.webbed[i].dc+')':'')+(holdEnemy(s,i)?' · Grabbing '+holdEnemy(s,i).name:'')+(combat&&flankedHero(s,i)?' · Flanked':'')+(s.enemies.some(e=>e.hp>0&&e.feintBackfire?.[i])?' · Feint backfired':'')+'</div>'+(hasShield(id)?'<div class="party-detail">Shield '+s.shields[i]+'/20 · '+shieldStatus(s,i)+'</div>':'')+'</div>'}).join('');
  return '<section aria-label="Party health"><div class="party-status">'+cards+'</div><p class="party-meta">Potions: '+s.potions+run.picks.map((id,i)=>['healing','harmful'].includes(id)?' · '+name(id)+': '+s.font[i]+' font casts':'').join('')+'</p></section>';
 }
 function defensePanel(s){
@@ -667,7 +697,7 @@ function useFeat(s,k){const i=s.active;
  return false}
 function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
  if(!s.hp.some(h=>h>0)){if(d.retry){run.battle=newRoom();enemyTurn()}return true}if(won(s)){kit(s);s.potions??=s.reward&&!secondRoom()?1:0;
- if(d.claim&&!s.reward){s.reward=true;s.potions+=secondRoom()?2:1;repairShields(s)}
+ if(d.claim&&!s.reward){s.reward=true;s.potions+=secondRoom()?2:1;repairShields(s);clearAfflictions(s)}
  else if(d.levelup)startAdvancement(s);
  else if(run.advancement&&!run.advancement.done&&d.advhero!==undefined){const i=Number(d.advhero);if(Number.isInteger(i)&&i>=0&&i<3){run.advancement.hero=i;run.advancement.all=false}}
  else if(run.advancement&&!run.advancement.done&&d.allfeats)run.advancement.all=!run.advancement.all;
