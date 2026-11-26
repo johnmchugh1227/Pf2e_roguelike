@@ -310,13 +310,67 @@ function cryptMonster(e,type){
 function placeLarge(es,slot,m,fallback){if(!(m.size>1)){es[slot]=m;return}
  const occupied=new Set([9,18,27,...es.filter((_,i)=>i!==slot).flatMap(e=>footprint(e))]),anchors=Array.from({length:45},(_,i)=>i).filter(i=>{const cells=footprint(m,i);return cells.length===m.size*m.size&&cells.every(p=>rawTile(p)==='.'&&!occupied.has(p))}).sort((a,b)=>dist(a,m.pos)-dist(b,m.pos)||a-b);
  if(!anchors.length){es[slot]=fallback;return}m.pos=anchors[0];es[slot]=m}
-function cryptEncounter(){const base=baseEnemySpecs(),room=run.room||1;
- // Tiered themed combinations. At most one general slot; room 9 always retains a crypt elite.
- const plans={1:[['skeleton'],['zombie']],2:[['zombie'],['skeleton']],3:[['ghoul'],['skeleton']],4:[['general']],5:[['skeletalChampion'],['wight'],['ghost']],6:[['skeleton','general'],['ghoul','general'],['general','skeletalChampion'],['zombie','general']],7:[['ghoul','wight'],['ghost','skeletalChampion'],['necromancer','zombie']],8:[['skeletalGiant','skeleton'],['wight','skeletalChampion'],['ghost','ghoul']],9:[['necromancer','skeletalChampion','general'],['wight','skeletalGiant','general'],['ghost','skeletalChampion','general']],10:[['cryptWarden']]};
- const ids=seedPick(plans[room],room,17),es=base.map((e,i)=>cryptMonster(e,ids[i]==='general'?'skeleton':ids[i]));
- for(let i=0;i<ids.length;i++){if(ids[i]==='general'){es[i]=generalMonster(base[i],seedPick(room<6?['rat','ratSwarm','spider','bat']:['ratSwarm','spider','bat','mimic','ooze'],room,i));continue}
- if(es[i].size>1)placeLarge(es,i,es[i],cryptMonster(base[i],'skeletalChampion'))}
+// Three-hero PF2e creature XP math. Hazard and reinforcement allowances are roguelike tuning, not awarded XP.
+const creatureXPTable={ '-4':10,'-3':15,'-2':20,'-1':30,'0':40,'1':60,'2':80,'3':120,'4':160 };
+const threatBudgets={Trivial:30,Low:40,Moderate:60,Severe:90,Extreme:120};
+const cryptRoomBudgets=[30,40,40,60,60,60,75,90,90,100];
+const cryptHazardPlans={3:['bones','bones'],4:['plate'],5:['rune'],6:['bones','plate'],7:['rune','bones'],8:['altar'],9:['plate','rune'],10:['altar']};
+const hazardXP={bones:0,plate:5,rune:5,altar:10};
+const cryptRecipes={
+ 1:[['The Restless Dead','skeleton'],['Unearthed','zombie'],['Brittle bones','skeleton','skeleton']],
+ 2:[['The Burial Guard','skeleton','zombie'],['Corpse in the Dark','zombie'],['Crossfire','skeleton','skeletonArcher']],
+ 3:[['Ossuary Stalker','ghoul'],['Bones and Teeth','ghoul','skeleton'],['Bone Patrol','skeleton','skeletonArcher']],
+ 4:[['Vermin in the Chapel','general'],['Defiled Chapel','general','skeleton'],['Crawling Tomb','zombie','general']],
+ 5:[['Champion of the Gate','skeletalChampion'],['Spectral Sentinel','ghost'],['Life Thief','wight'],['Guardians of the Dead','skeletalChampion','skeleton']],
+ 6:[['Unquiet Patrol','skeleton','general'],['Grave Robbers','general','ghoul'],['The Dead and the Damned','zombie','general','skeletonArcher'],['Guardpost Defender','general','skeletalChampion']],
+ 7:[['Unholy Ritual','necromancer','zombie'],['Hungry Dead','ghoul','wight'],['Haunted Approach','ghost','skeletalChampion'],['Ravenous Pack','ghoul','ghoul','skeleton']],
+ 8:[['The Ossuary Guardian','skeletalGiant'],['Giant and Sentry','skeletalGiant','skeleton'],['Haunted Reliquary','ghost','ghoul'],['The Deathwatch','wight','skeletalChampion','skeleton']],
+ 9:[['Last Rites','necromancer','skeletalChampion','general'],['The Grave Guard','wight','skeletalGiant','general'],['Spectral Court','ghost','skeletalChampion','general'],['Crypt Vanguard','skeletalChampion','general']],
+ 10:[['The Sepulcher Warden','cryptWarden']]
+};
+const monsterRelative={rat:-2,bat:-2,ratSwarm:-1,spider:-1,mimic:0,ooze:0,skeleton:-1,skeletonArcher:-1,zombie:-1,ghoul:0,ghost:0,wight:0,skeletalChampion:0,skeletalGiant:1,necromancer:0,cryptWarden:2};
+function creatureXP(lv,party=level()){return creatureXPTable[lv-party]??Infinity}
+function creatureBase(lv,pos,guard=true){return {pos,max:Math.max(5,12+6*lv),ac:15+Math.floor(1.2*lv),attack:5+Math.floor(1.4*lv),init:5+Math.floor(1.1*lv),fort:4+Math.floor(1.3*lv),guard}}
+function summonAllowance(party){return creatureXP(Math.max(-1,party-4),party)}
+function budgetCreature(id,party,variant=0){
+ const type=id==='skeletonArcher'?'skeleton':id,standard=Math.max(-1,party+(monsterRelative[id]??-1)),lv=standard+variant;
+ if(lv<-1||!Number.isFinite(creatureXP(lv,party)))return null;
+ let m;if(type==='cryptWarden'){m=cryptMonster(baseEnemySpecs()[0],type)}else{
+ const base=creatureBase(standard,0,id!=='skeletonArcher');m=generalBestiary.some(x=>x.id===type)?generalMonster(base,type):cryptMonster(base,type);
+ // Keep standard monster identity, then apply simplified Weak/Elite adjustments.
+ m.flat=(m.flat??(m.guard?2:0))+Math.floor(Math.max(0,standard)/3);
+ if(variant){const hpDelta=standard<=1?5:standard<=4?10:15;
+ for(const stat of ['ac','attack','init','fort','reflex','will','perception'])m[stat]=(m[stat]??0)+2*variant;
+ m.max=Math.max(5,m.max+hpDelta*variant);m.flat=Math.max(0,m.flat+2*variant);m.name=(variant>0?'Elite ':'Weak ')+m.name}
+ }
+ m.creatureLevel=lv;m.variant=variant>0?'Elite':variant<0?'Weak':'Standard';m.xp=creatureXP(lv,party);m.summonXP=m.summons?summonAllowance(party)*m.summons:0;return m
+}
+function encounterSpawn(es,room){const occupied=new Set([9,18,27]),map=layout().rows.join(''),preferred=['A','B','C'].map(k=>map.indexOf(k)),fallback=[15,24,33];
+ const order=es.map((e,i)=>i).sort((a,b)=>(es[b].size||1)-(es[a].size||1)||a-b);
+ for(const i of order){const e=es[i],anchor=preferred[i]>=0?preferred[i]:fallback[i],cells=Array.from({length:45},(_,p)=>p).filter(p=>{const fs=footprint(e,p);return p%9>=4&&fs.length===(e.size||1)**2&&fs.every(q=>rawTile(q)==='.'&&!occupied.has(q))}).sort((a,b)=>dist(a,anchor)-dist(b,anchor)||a-b);
+ if(!cells.length)return null;e.pos=cells[0];for(const p of footprint(e))occupied.add(p)}
  return es}
+function encounterThreat(xp){return xp<=30?'Trivial':xp<=40?'Low':xp<=60?'Moderate':xp<=90?'Severe':xp<120?'Severe+': 'Extreme'}
+function cryptEncounter(){
+ const room=run.room||1,party=level(),budget=cryptRoomBudgets[room-1],hazards=(cryptHazardPlans[room]||[]).reduce((n,k)=>n+hazardXP[k],0),groups=[];
+ for(const [r,recipe] of cryptRecipes[room].entries()){
+ const [title,...slots]=recipe,ids=slots.map((id,i)=>id==='general'?seedPick(room<6?['rat','ratSwarm','spider','bat']:['ratSwarm','spider','bat','mimic','ooze'],room,111+r*3+i):id),choices=[];
+ function build(index,list,xp){
+ if(index===ids.length){if(xp+hazards>budget)return;const es=encounterSpawn(list.map(e=>({...e})),room);if(es)choices.push({es,xp:xp+hazards});return}
+ for(const variant of ids[index]==='cryptWarden'?[0]:[-1,0,1]){const m=budgetCreature(ids[index],party,variant);if(m&&xp+m.xp+m.summonXP+hazards<=budget)build(index+1,[...list,m],xp+m.xp+m.summonXP)}
+ }
+ build(0,[],0);if(choices.length)groups.push({title,choices,best:Math.max(...choices.map(c=>c.xp))});
+ }
+ if(!groups.length)throw Error('No legal Crypt encounter for room '+room);
+ const best=Math.max(...groups.map(g=>g.best)),eligible=groups.filter(g=>g.best>=best-10),group=seedPick(eligible,room,17),choice=seedPick(group.choices.filter(c=>c.xp>=group.best-5),room,18);
+ for(const e of choice.es)e.encounterName=group.title;
+ return choice.es
+}
+function encounterInfo(s){if(!s.enemies?.length||s.enemies.some(e=>!Number.isFinite(e.xp)))return null;
+ const creatures=s.enemies.reduce((n,e)=>n+e.xp,0),reserve=s.enemies.reduce((n,e)=>n+(e.summonXP||0),0),hazards=(s.hazards||[]).reduce((n,z)=>n+(hazardXP[z.kind]||0),0);
+ return {title:s.enemies[0].encounterName,party:level(),creatures,reserve,hazards,total:creatures+reserve+hazards,budget:cryptRoomBudgets[(run.room||1)-1],threat:encounterThreat(creatures+reserve+hazards)}}
+function encounterHeader(s){const m=s.encounter;if(!m)return '';return '<p class="legend"><b>'+m.title+'</b> · '+m.threat+' threat · '+m.total+'/'+m.budget+' planned XP ('+m.creatures+' creatures'+(m.hazards?' + '+m.hazards+' hazards':'')+(m.reserve?' + '+m.reserve+' potential summons':'')+')</p>'}
+
 function themedEnemySpecs(){
  const es=baseEnemySpecs(),room=run.room||1;
  if(run.floor===0)return cryptEncounter();
@@ -484,7 +538,7 @@ const hazardTypes={
  rune:{name:'Cursed rune',glyph:'◇',skill:'religion',info:'Living creatures ending a turn here attempt a basic Will save against void damage. Undead are unaffected.'},
  altar:{name:'Necrotic altar',glyph:'✦',skill:'religion',info:'Pulses at the end of even rounds: basic Will save against void damage within 10 feet. Undead are unaffected.'}
 };
-function makeHazards(s){if(run.floor!==0)return [];const room=run.room||1,plan={3:['bones','bones'],4:['plate'],5:['rune'],6:['bones','plate'],7:['rune','bones'],8:['altar'],9:['plate','rune'],10:['altar']}[room]||[];
+function makeHazards(s){if(run.floor!==0)return [];const room=run.room||1,plan=cryptHazardPlans[room]||[];
  const occupied=new Set([...s.pos,...s.enemies.flatMap(e=>footprint(e))]),out=[];
  for(let j=0;j<plan.length;j++){const kind=plan[j],choices=Array.from({length:45},(_,p)=>p).filter(p=>rawTile(p)==='.'&&p%9>=2&&p%9<=6&&!occupied.has(p)&&!out.some(z=>z.pos===p)&&(!['altar','rune'].includes(kind)||p%9>=3));if(!choices.length)continue;out.push({kind,pos:seedPick(choices,room,70+j),active:true,dc:13+Math.ceil(room/2),die:room>=7?6:4})}return out}
 function hazardAt(s,p){return s.hazards?.find(z=>z.active&&z.pos===p)}
@@ -532,11 +586,11 @@ function applyTaunt(s,i){const e=target(s);for(const x of s.enemies)if(x.taunt==
 function tauntPenalty(s,e,targets){if(e.taunt<0||!s.hp[e.taunt]||targets.includes(e.taunt))return 0;e.exposed=true;e.ignoredTaunt=e.taunt;note(s,e.name+' ignores Taunt · −1 attack · off-guard');return 1}
 function reactiveEnemy(e){return !e.noReaction&&!!(e.reactive||e.boss||(e.formation&&e.guard||['Iron guard','Vanguard','Reliquary defender'].includes(e.name)))}
 function enemyReach(e){return e.reach??(e.guard?2:1)}
-function enemyPanel(s){return '<div class="actions">'+initEnemies(s).map((e,i)=>'<button data-target="'+i+'" aria-pressed="'+(s.target===i)+'" '+(e.hp?'':'disabled')+'>'+e.name+' · '+e.hp+'/'+e.max+' HP'+(e.frightened?' · Frightened '+e.frightened:'')+(e.prone?' · Prone':'')+(e.slow?' · Slowed '+e.slow:'')+(e.size>1?' · Large '+e.size+'×'+e.size:'')+(e.flying?' · Flying':'')+(e.dormant?' · Dormant':'')+(heldByEnemy(s,e).length?' · Holding '+heldByEnemy(s,e).map(i=>name(run.picks[i])).join(', '):'')+(e.shieldHP!==undefined?' · Shield '+e.shieldHP+'/12'+(e.shieldRaised?' raised':e.shieldHP<=6?' broken':''):'')+(e.summons!==undefined?' · Raise dead '+e.summons+' left':'')+(e.healCasts!==undefined?' · Heal '+e.healCasts+' left':'')+(e.areaCasts!==undefined?' · Fire burst '+e.areaCasts+' left':'')+(e.areaMark!=null?' · Preparing blast':'')+(formationBonus(s,e)?' · Formation +1':'')+(e.grabbedBy>=0?' · '+(e.restrained?'Restrained':'Grabbed')+' by '+name(run.picks[e.grabbedBy]):'')+(e.taunt>=0?' · Taunted by '+name(run.picks[e.taunt]):'')+(e.exposed?' · Off-guard':'')+(e.feints?.some(Boolean)?' · Feinted: '+e.feints.map((x,j)=>x?name(run.picks[j])+(x.single?' (next strike)':' (through next turn)'):'').filter(Boolean).join(', '):'')+(e.feintBackfire?.some(Boolean)?' · Sees through '+e.feintBackfire.map((x,j)=>x?name(run.picks[j]):'').filter(Boolean).join(', '):'')+(reactiveEnemy(e)?' · Reactive Strike '+(e.reaction===false?'spent':'ready'):'')+'</button>').join('')+'</div>'}
+function enemyPanel(s){return '<div class="actions">'+initEnemies(s).map((e,i)=>'<button data-target="'+i+'" aria-pressed="'+(s.target===i)+'" '+(e.hp?'':'disabled')+'>'+e.name+(Number.isInteger(e.creatureLevel)?' · Lv '+e.creatureLevel:'')+' · '+e.hp+'/'+e.max+' HP'+(e.frightened?' · Frightened '+e.frightened:'')+(e.prone?' · Prone':'')+(e.slow?' · Slowed '+e.slow:'')+(e.size>1?' · Large '+e.size+'×'+e.size:'')+(e.flying?' · Flying':'')+(e.dormant?' · Dormant':'')+(heldByEnemy(s,e).length?' · Holding '+heldByEnemy(s,e).map(i=>name(run.picks[i])).join(', '):'')+(e.shieldHP!==undefined?' · Shield '+e.shieldHP+'/12'+(e.shieldRaised?' raised':e.shieldHP<=6?' broken':''):'')+(e.summons!==undefined?' · Raise dead '+e.summons+' left':'')+(e.healCasts!==undefined?' · Heal '+e.healCasts+' left':'')+(e.areaCasts!==undefined?' · Fire burst '+e.areaCasts+' left':'')+(e.areaMark!=null?' · Preparing blast':'')+(formationBonus(s,e)?' · Formation +1':'')+(e.grabbedBy>=0?' · '+(e.restrained?'Restrained':'Grabbed')+' by '+name(run.picks[e.grabbedBy]):'')+(e.taunt>=0?' · Taunted by '+name(run.picks[e.taunt]):'')+(e.exposed?' · Off-guard':'')+(e.feints?.some(Boolean)?' · Feinted: '+e.feints.map((x,j)=>x?name(run.picks[j])+(x.single?' (next strike)':' (through next turn)'):'').filter(Boolean).join(', '):'')+(e.feintBackfire?.some(Boolean)?' · Sees through '+e.feintBackfire.map((x,j)=>x?name(run.picks[j]):'').filter(Boolean).join(', '):'')+(reactiveEnemy(e)?' · Reactive Strike '+(e.reaction===false?'spent':'ready'):'')+'</button>').join('')+'</div>'}
 
 function newRoom(){const s={pos:[9,18,27],rng:((tenthRoom()?0xa24baed5:ninthRoom()?0x94d049bb:eighthRoom()?0x9e3779b1:seventhRoom()?0xd3a2646c:sixthRoom()?0x165667b1:fifthRoom()?0xc2b2ae35:fourthRoom()?0x27d4eb2f:thirdRoom()?0x85ebca6b:secondRoom()?0x9e3779b9:0)^run.seed^Math.imul(run.floor+1,2654435761))>>>0,actions:3,parity:0,round:1,arrived:[],reward:false,hp:run.picks.map(id=>profiles[id][0]),raised:[false,false,false],log:[],attacks:0,cursor:0};
  if((run.room||1)>1){s.hp=run.entry.hp.slice();s.font=run.entry.font.slice();s.potions=run.entry.potions}else s.potions=0;
- initEnemies(s);s.hazards=makeHazards(s);const initiative=Array.from({length:3+s.enemies.length},(_,i)=>i).map(i=>({i,total:roll(s,20)+(i>=3?s.enemies[i-3].init:initiativeBonus(i))})).sort((a,b)=>b.total-a.total||b.i-a.i);
+ initEnemies(s);s.hazards=makeHazards(s);s.encounter=encounterInfo(s);const initiative=Array.from({length:3+s.enemies.length},(_,i)=>i).map(i=>({i,total:roll(s,20)+(i>=3?s.enemies[i-3].init:initiativeBonus(i))})).sort((a,b)=>b.total-a.total||b.i-a.i);
  s.order=initiative.map(e=>e.i);while(s.order[s.cursor]<3&&!s.hp[s.order[s.cursor]])s.cursor++;s.active=s.order[s.cursor];note(s,'Initiative: '+initiative.map(e=>(e.i>=3?s.enemies[e.i-3].name:name(run.picks[e.i]))+' '+e.total).join(' → '));return s}
 function outcome(d,bonus,ac){let degree=d+bonus>=ac+10?3:d+bonus>=ac?2:d+bonus<=ac-10?0:1;return Math.min(3,Math.max(0,degree+(d===20?1:d===1?-1:0)))}
 function strikeRoll(s,title,bonus,ac,die,flat,sneak=false,defender=-1,melee=false,dice=1){const d=roll(s,20);let deg=outcome(d,bonus,ac);
@@ -776,7 +830,7 @@ function enemyAreaAction(s,e,actions){if(actions<2||e.restrained||!e.hp)return 0
 function summonCells(s,source,range){return Array.from({length:45},(_,i)=>i).filter(i=>rawTile(i)==='.'&&!s.pos.includes(i)&&enemyAt(i,s)<0&&enemyDistance(source,i)<=range&&enemyLOS(source,i)&&hazardAt(s,i)?.kind!=='plate').sort((a,b)=>enemyDistance(source,a)-enemyDistance(source,b)||a-b)}
 function summonSkeleton(s,e){if(!(e.summons>0)||s.enemies.length>=5||s.enemies.filter(x=>x.hp>0).length>=3||(e.warden&&e.hp>e.max/2))return false;
  const cells=summonCells(s,e,2);if(!cells.length)return false;
- const p=cryptMonster({name:'Summoned skeleton',pos:cells[0],max:8+level()*2,ac:13+level(),attack:3+level(),init:3+level(),fort:2+level(),guard:true},'skeleton');
+ const lv=Math.max(-1,(s.encounter?.party??level())-4),p=cryptMonster(s.encounter?creatureBase(lv,cells[0],true):{name:'Summoned skeleton',pos:cells[0],max:8+level()*2,ac:13+level(),attack:3+level(),init:3+level(),fort:2+level(),guard:true},'skeleton');if(s.encounter)Object.assign(p,{creatureLevel:lv,variant:'Summoned',xp:creatureXP(lv,s.encounter.party)});
  Object.assign(p,{name:'Summoned skeleton',hp:p.max,known:[0,0,0],taunt:-1,frightened:0,exposed:false,studied:false,reach:1,meleeOnly:true,summoned:true,die:4,flat:1});
  const id=s.enemies.length;s.enemies.push(p);s.order.push(id+3);e.summons--;note(s,e.name+' raises a skeletal minion · joins initiative');return true}
 function giantSweep(s,e){const ts=[0,1,2].filter(i=>s.hp[i]>0&&enemyInReach(e,s.pos[i]));if(ts.length<2)return false;const pen=tauntPenalty(s,e,ts);
@@ -930,7 +984,7 @@ function drink(s,i){
 function field(){const s=run.battle,r=layout(),win=won(s);
  let h='<header><h1>'+r.title+'</h1><small>Room '+(run.room||1)+' of 10 · Level '+level()+'</small></header>';
  kit(s);s.potions??=s.reward&&!secondRoom()?1:0;
- h+=partyPanel(s,!win&&s.hp.some(h=>h>0));
+ h+=encounterHeader(s)+partyPanel(s,!win&&s.hp.some(h=>h>0));
  if(!s.hp.some(h=>h>0))return h+'<h2>Party defeated</h2><button data-retry="1">Retry encounter</button> <button data-reset="new">New draft</button>'+combatLog(s);if(win){
  h+='<h2>Encounter cleared</h2>';
  if(s.reward)h+=recoveryPanel(s);
@@ -1040,7 +1094,7 @@ function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
  else if(d.stride){const m=moves().get(preview);if(m){heroStride(s,m);payAction()}}
  else if(d.end){preview=null;advance();enemyTurn()}return true}
 
-function bestiaryPanel(){return '<details><summary>General bestiary · '+generalBestiary.filter(x=>x.playable).length+' of '+generalBestiary.length+' playable</summary><ul>'+generalBestiary.map(x=>'<li><b>'+x.name+'</b> · '+x.role+' · '+x.ability+(x.playable?'':' (planned)')+'</li>').join('')+'</ul><p class="legend">Environment pools are planned separately; current floor choices use the original three environments. Seeded general slots preserve room difficulty and boss milestones.</p></details>'+(run.floor===0?'<details><summary>Crypt bestiary · 9 themed types</summary><ul>'+environmentBestiary.crypt.map(id=>'<li><b>'+monsterTypes[id].label+'</b> · '+monsterTypes[id].info+'</li>').join('')+'</ul><p class="legend">12 themed starting enemies and 3 general creatures across ten rooms. Summoned reinforcements are additional.</p></details>':'')}
+function bestiaryPanel(){return '<details><summary>General bestiary · '+generalBestiary.filter(x=>x.playable).length+' of '+generalBestiary.length+' playable</summary><ul>'+generalBestiary.map(x=>'<li><b>'+x.name+'</b> · '+x.role+' · '+x.ability+(x.playable?'':' (planned)')+'</li>').join('')+'</ul><p class="legend">Environment pools are planned separately; current floor choices use the original three environments. Seeded general slots preserve room difficulty and boss milestones.</p></details>'+(run.floor===0?'<details><summary>Crypt bestiary · 9 themed types</summary><ul>'+environmentBestiary.crypt.map(id=>'<li><b>'+monsterTypes[id].label+'</b> · '+monsterTypes[id].info+'</li>').join('')+'</ul><p class="legend">Budgeted themed encounters vary in size and creature levels. General creatures appear in rooms 4, 6 and 9; potential reinforcements are reserved in the budget.</p></details>':'')}
 function render(){if(run.battle){app.innerHTML=field();return}const n=run.picks.length;let heading,body;if(n<3){heading='Choose hero '+(n+1)+' of 3';body=dealDraft(run.seed)[n].map(heroCard).join('')}else if(run.floor===null){heading='Choose the first floor';body=floors.map(([title,desc],i)=>'<article class="card"><h3>'+title+'</h3><p>'+desc+'</p><footer><button data-floor="'+i+'">Choose '+title+'</button></footer></article>').join('')}else{heading=floors[run.floor][0];body='<article class="card"><h3>Expedition assembled</h3><p>Your party and starting environment are selected.</p><button data-enter="1">Enter room 1</button></article>'}
 app.innerHTML='<header><h1>Expedition draft</h1><small>Seed '+run.seed+'</small></header><b>Party</b><ul>'+Array.from({length:3},(_,i)=>'<li>'+(run.picks[i]?name(run.picks[i]):'Open slot')+'</li>').join('')+'</ul><h2 id="stage" tabindex="-1">'+heading+'</h2><section class="grid">'+body+'</section>'+bestiaryPanel()+(run.floor!==null?'<div class="actions"><button data-reset="same">Replay seed</button><button data-reset="new">New draft</button></div>':'')}
 app.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(battleClick(b.dataset)){persist();render();return}if(b.dataset.enter&&run.floor!==null){run.battle=newRoom();enemyTurn();preview=null;persist();render();return}const n=run.picks.length;if(n<3&&dealDraft(run.seed)[n].includes(b.dataset.pick))run.picks.push(b.dataset.pick);else if(n===3&&run.floor===null&&['0','1','2'].includes(b.dataset.floor))run.floor=Number(b.dataset.floor);else if(run.floor!==null&&b.dataset.reset)run=fresh(b.dataset.reset==='same'?run.seed:randomSeed());else return;persist();render();document.getElementById('stage')?.focus()});
