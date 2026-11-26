@@ -486,7 +486,7 @@ function escapeWeb(s){const i=s.active,w=s.webbed[i];if(!w)return false;const mo
 function enemyGlyph(e,j){return e.boss?'W':['A','B','C'][j]||'E'}
 function monsterDetails(s){const e=target(s),m=monsterTypes[e.type],g=generalBestiary.find(x=>x.id===e.type);return m?'<p class="legend"><b>'+e.name+' · '+(g?'General · '+g.role:m.label)+'</b> · '+m.info+(e.formation?' · Formation '+(formationBonus(s,e)?'active':'inactive'):'')+'</p>':''}
 function healMonster(s,e){if(!(e.healCasts>0))return false;
- const allies=s.enemies.filter(x=>x.hp>0&&x.hp<=x.max*.65&&dist(e.pos,x.pos)<=6&&clear(e.pos,x.pos)).sort((a,b)=>(b.max-b.hp)-(a.max-a.hp));
+ const allies=s.enemies.filter(x=>x.hp>0&&!isUndead(x)&&x.hp<=x.max*.65&&dist(e.pos,x.pos)<=6&&clear(e.pos,x.pos)).sort((a,b)=>(b.max-b.hp)-(a.max-a.hp));
  if(!allies.length)return false;const x=allies[0],n=Math.min(x.max-x.hp,roll(s,8)+level()*2);x.hp+=n;e.healCasts--;note(s,e.name+' Heal → '+x.name+' · restores '+n+' HP · '+e.healCasts+' casts left');return true}
 function monsterFeint(s,e,t){const d=roll(s,20),dc=10+level()+2+attrValue(t,4),mod=e.attack-2-(e.frightened||0),deg=outcome(d,mod,dc);if(deg>=2)e.assassinFeint=t;note(s,e.name+' Feint → '+name(run.picks[t])+' · '+(d+mod)+' vs Perception DC '+dc+' · '+(deg>=2?'off-guard':'failed'));return deg>=2}
 function packDamage(s,e,t){return e.pack&&s.enemies.some(x=>x!==e&&enemyThreatens(x,x.pos,s.pos[t]))?2:0}
@@ -513,7 +513,7 @@ function enemyTurn(){const s=run.battle;kit(s);const saved=s.target;
  const n=strikeRoll(s,e.name+(e.web?' · fangs':e.type==='zombie'?' · slam':e.type==='wolf'?' · bite':e.type==='rat'?' · bite':e.guard?(melee?' · melee':' · javelin'):'')+(pack?' · Pack Attack':'')+(precision?' · precision':'')+' → '+name(run.picks[t]),e.attack-penalty(shot,!!e.agile)-(taunted?1:0)-enemyAttackPenalty(e),ac,e.die??(melee?8:6),(e.flat??(melee?2:0))+pack+precision,false,t,melee);
  if(e.assassinFeint===t)e.assassinFeint=-1;
  const oldHP=s.hp[t];defend(s,t,n);
- if(e.knockdown&&melee&&n>0&&s.hp[t]>0&&s.hp[t]<oldHP&&actions>0&&!s.prone[t]&&inReach(e.pos,s.pos[t],1)){actions--;s.prone[t]=true;note(s,e.name+' spends an action to Knockdown '+name(run.picks[t]))}
+ if(e.hp>0&&e.knockdown&&melee&&n>0&&s.hp[t]>0&&s.hp[t]<oldHP&&actions>0&&!s.prone[t]&&inReach(e.pos,s.pos[t],1)){actions--;s.prone[t]=true;note(s,e.name+' spends an action to Knockdown '+name(run.picks[t]))}
  }}
  e.assassinFeint=-1;if(e.boss&&e.hp>0&&!e.restrained){e.bossTurns=(e.bossTurns||0)+1;if(e.bossTurns%2===1){e.charging=true;note(s,e.name+' prepares a sweeping strike. Move out of the threatened area!')}}if(e.frightened)e.frightened--;if(won(s)||!s.hp.some(h=>h>0))break;advance();
  }s.target=saved;retarget(s)}
