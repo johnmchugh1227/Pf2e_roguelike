@@ -1,6 +1,7 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expedition draft</title><style>
 *{box-sizing:border-box}body{margin:0;background:#172925;color:#f9efdc;font:16px/1.5 'DM Sans',system-ui,sans-serif}main{max-width:1040px;margin:auto;padding:clamp(16px,3vw,38px)}h1,h2,h3,p{margin:0 0 .6rem}h1,h2,h3{font-family:Georgia,serif}h1{font-size:clamp(28px,4vw,44px)}h2{font-size:25px}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #789284;margin-bottom:16px}small{color:#d7c69d}ul{padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 24px}li{border:1px solid #80948a;padding:5px 11px;border-radius:16px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card{display:flex;flex-direction:column;background:#f5edd9;color:#252d26;border-top:5px solid #c29251;padding:16px;border-radius:5px;min-width:0}.card p{font-size:15px}.card footer{margin-top:auto;padding-top:12px}button,summary{cursor:pointer;min-height:44px;font:inherit}summary{color:#335c49;padding:9px 0}button{border:1px solid #789284;background:#284c3d;color:white;border-radius:5px;padding:8px 14px}button:focus-visible,summary:focus-visible{outline:3px solid #d28825;outline-offset:2px}.card button{width:100%}button:disabled{opacity:.55;cursor:not-allowed}button[aria-pressed=true]{outline:3px solid #d5b36b;outline-offset:2px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}@media(max-width:640px){.grid{grid-template-columns:1fr}header{align-items:baseline;gap:10px}main{padding:15px}}
 .mapscroll{overflow-x:auto}.map{display:grid;grid-template-columns:repeat(9,minmax(32px,1fr));gap:2px;max-width:580px}.sq{min-height:34px;aspect-ratio:1.25;padding:0;border-radius:3px;color:#fcf8e6;font-weight:bold}.sq:disabled{opacity:1}.tfloor{background:#293d36}.available{background:#527462;border-color:#afc7a0}.twall{background:#111e1a}.tc{background:#7b6447}.tA{background:#934a3d}.edge{border-right:3px solid #dcbc71}.pawn{background:#224f65}.current,.selected{outline:3px solid #e4bc74;outline-offset:-4px}.legend{font-size:13px;color:#e3d6bb;margin:8px 0}.turn{color:#efcf95}
+.danger{box-shadow:inset 0 0 0 2px #e16d5b;background:#63413a}.danger.available{background:#805749}
 .party-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0 12px;max-width:580px}
 .party-member{min-width:0;background:#213a32;border:1px solid #547266;border-radius:6px;padding:8px}
 .party-member.active{border-color:#efcf95;box-shadow:inset 0 0 0 1px #efcf95}
@@ -109,17 +110,35 @@ const seventhRooms=[
  {title:"The Reservoir Gate",low:"crate",wall:"sluice pier",rows:[".........","..c....A.",".......B.","..c.#....","........."]},
  {title:"The Inner Keep",low:"barricade",wall:"stone pier",rows:[".........","..#....A.",".......B.","..c...#..","........."]}
 ];
+const eighthRooms=[
+ {title:"The Reliquary",low:"stone chest",wall:"pillar",rows:[".........","..c...A..","....#....","..c...B..","........."]},
+ {title:"The Sunken Treasury",low:"crate",wall:"sluice pier",rows:[".........","..c....A.","....#....","..c...B..","........."]},
+ {title:"The War Room",low:"table",wall:"stone pier",rows:[".........","..c...A..","....#....","..c...B..","........."]}
+];
+const ninthRooms=[
+ {title:"The Tomb Antechamber",low:"coffin",wall:"pillar",rows:[".........","..c...A..",".....B...","..c....C.","........."]},
+ {title:"The Flooded Sanctum",low:"crate",wall:"pier",rows:[".........","..c....A.",".....B...","..c...C..","........."]},
+ {title:"The Royal Approach",low:"barricade",wall:"pillar",rows:[".........","..c...A..",".....B...","..c....C.","........."]}
+];
+const tenthRooms=[
+ {title:"The Sepulcher Throne",low:"sarcophagus",wall:"pillar",rows:[".........","..c...#..","......A..","..c...#..","........."]},
+ {title:"The Drowned Throne",low:"crate",wall:"sluice pier",rows:[".........","..c...#..","......A..","..c...#..","........."]},
+ {title:"The Warlord's Hall",low:"weapon rack",wall:"pillar",rows:[".........","..c...#..","......A..","..c...#..","........."]}
+];
+function eighthRoom(){return run.room===8}
+function ninthRoom(){return run.room===9}
+function tenthRoom(){return run.room===10}
 function seventhRoom(){return run.room===7}
 function sixthRoom(){return run.room===6}
 function thirdRoom(){return run.room===3}
 function fourthRoom(){return run.room===4}
 function fifthRoom(){return run.room===5}
-function level(){return run.adv4?4:run.general?3:run.advancement?2:1}
+function level(){return run.adv5?5:run.adv4?4:run.general?3:run.advancement?2:1}
 function secondRoom(){return run.room===2}
 function guardFight(){return secondRoom()||thirdRoom()||fifthRoom()}
 function foeMax(){return fifthRoom()?36:fourthRoom()?28:thirdRoom()?30:secondRoom()?22:18}
 function foeAC(){return fifthRoom()?19:fourthRoom()?17:thirdRoom()?17:15}
-function layout(){return (seventhRoom()?seventhRooms:sixthRoom()?sixthRooms:fifthRoom()?fifthRooms:fourthRoom()?fourthRooms:thirdRoom()?thirdRooms:secondRoom()?guardRooms:rooms)[run.floor]}
+function layout(){return (tenthRoom()?tenthRooms:ninthRoom()?ninthRooms:eighthRoom()?eighthRooms:seventhRoom()?seventhRooms:sixthRoom()?sixthRooms:fifthRoom()?fifthRooms:fourthRoom()?fourthRooms:thirdRoom()?thirdRooms:secondRoom()?guardRooms:rooms)[run.floor]}
 function baseFoeName(){return fifthRoom()?'Dungeon captain':fourthRoom()?'Veteran marksman':thirdRoom()?'Vault sentinel':secondRoom()?'Gate guard':'Archer'}
 // Level-one prototype profiles: maximum HP, AC, Strike modifier, weapon die.
 const profiles={shield:[20,18,9,8],reach:[20,17,9,10],thief:[17,17,7,6],mastermind:[17,17,7,6],healing:[16,15,5,4],harmful:[18,17,7,6],justice:[21,18,7,8],liberation:[21,18,7,6],bodyguard:[23,18,7,8]};
@@ -165,7 +184,24 @@ const generalPool=[['Toughness','Increase maximum HP by your level. Recovery-che
 function generalFeat(i){const f=run.general?.choices?.[i];return Number.isInteger(f)?generalPool[f]?.[0]:null}
 function speed(i){return generalFeat(i)==='Fleet'?6:5}
 function initiativeBonus(i){return 4+level()-1+(generalFeat(i)==='Incredible Initiative'?2:0)}
-function profile(id){const [hp,ac,attack,die]=profiles[id],bonus=level()-1,i=run.picks.indexOf(id);return [hp+bonus*growth[id]+(run.general?.done&&generalFeat(i)==='Toughness'?level():0),ac+bonus,attack+bonus+(Number.isInteger(run.runeHero)&&run.runeHero===i?1:0),die]}
+const attributes=['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'];
+// Prototype inferred starting modifiers; full character ancestry/attribute generation is future work.
+const baseAttrs={shield:[4,1,2,0,1,1],reach:[4,2,2,0,1,0],thief:[1,4,2,0,1,1],mastermind:[0,4,1,3,1,0],healing:[0,2,1,0,4,2],harmful:[3,1,2,0,3,0],justice:[4,0,2,0,1,2],liberation:[4,0,2,0,1,2],bodyguard:[4,1,3,0,0,1]};
+function attrDelta(i,a,preview=false){const id=run.picks[i];return (run.adv5?.done||preview)&&run.adv5?.boosts[i]?.includes(a)&&baseAttrs[id][a]<4?1:0}
+function attrValue(i,a,preview=false){return baseAttrs[run.picks[i]][a]+attrDelta(i,a,preview)}
+function atkAttr(id){return ['thief','mastermind'].includes(id)?1:0}
+function acDex(id){return ['thief','mastermind','healing'].includes(id)}
+function weaponExpert(id){return ['shield','reach','thief','mastermind','justice','liberation','bodyguard'].includes(id)}
+function profile(id){const [hp,ac,attack,die]=profiles[id],bonus=level()-1,i=run.picks.indexOf(id),con=attrDelta(i,2),dex=acDex(id)?attrDelta(i,1):0,expert=level()>=5&&weaponExpert(id)?2:0;
+ return [hp+bonus*growth[id]+(run.general?.done&&generalFeat(i)==='Toughness'?level():0)+level()*con,ac+bonus+dex,attack+bonus+expert+attrDelta(i,atkAttr(id))+(Number.isInteger(run.runeHero)&&run.runeHero===i?1:0),die]}
+function start5(s){if(!eighthRoom()||!won(s)||!s.reward||run.adv5||!run.adv4?.done)return false;run.adv5={boosts:[[],[],[]],hero:0,done:false};
+ s.hp=s.hp.map((hp,i)=>hp>0?hp+growth[run.picks[i]]+(generalFeat(i)==='Toughness'?1:0):0);note(s,'Party reached level 5 · HP, proficiency, spell rank and class damage scaling increased.');return true}
+function boost5(i,a){const v=run.adv5;if(!v||v.done||!Number.isInteger(i)||i<0||i>2||!Number.isInteger(a)||a<0||a>=6)return false;const arr=v.boosts[i];if(arr.includes(a))arr.splice(arr.indexOf(a),1);else if(arr.length<4)arr.push(a);else return false;return true}
+function finish5(s){const v=run.adv5;if(!v||v.done||!v.boosts.every(b=>b.length===4&&new Set(b).size===4&&b.every(a=>Number.isInteger(a)&&a>=0&&a<6)))return false;v.done=true;s.hp=s.hp.map((hp,i)=>hp>0?Math.min(profile(run.picks[i])[0],hp+5*attrDelta(i,2)):0);return true}
+function panel5(){const v=run.adv5,i=v.hero,id=run.picks[i],p=profile(id),arr=v.boosts[i];return '<h2>Party reached level 5!</h2><p>Choose four distinct attribute boosts per hero. A modifier of +4 or higher takes two boosts to increase; the first is recorded as a partial boost.</p><ul>'+run.picks.map((id,j)=>'<li><button data-fivehero="'+j+'" aria-pressed="'+(i===j)+'">'+name(id)+' · '+v.boosts[j].length+'/4</button></li>').join('')+'</ul><h3>'+name(id)+'</h3><p>Max HP '+(p[0]+5*attrDelta(i,2,true))+' · AC '+(p[1]+(acDex(id)?attrDelta(i,1,true):0))+' · Strike +'+(p[2]+attrDelta(i,atkAttr(id),true))+'</p><div class="grid">'+attributes.map((n,a)=>'<article class="card"><h3>'+n+'</h3><p>+'+baseAttrs[id][a]+' → +'+attrValue(i,a,true)+(arr.includes(a)&&baseAttrs[id][a]>=4?' (partial boost)':'')+'</p><footer><button data-boost="'+a+'" aria-pressed="'+arr.includes(a)+'" '+(!arr.includes(a)&&arr.length===4?'disabled':'')+'>'+(arr.includes(a)?'✓ Selected':'Boost '+n)+'</button></footer></article>').join('')+'</div><div class="actions"><button data-fivefinish="1" '+(v.boosts.every(b=>b.length===4)?'':'disabled')+'>Confirm level 5</button></div><p class="legend">Prototype starting modifiers are inferred from hero roles. Constitution, applicable Dexterity AC, attack attributes and Wisdom spell DC are wired; other skill and save benefits, ancestry feats and remaining class features are pending.</p>'}
+function strikingPanel(){return '<h3>Equipment reward · striking rune</h3><p>Assign a striking rune to the hero with the potency rune. Their weapon Strikes now roll two weapon damage dice.</p><button data-striking="1" '+(run.striking?'disabled':'')+'>'+name(run.picks[run.runeHero])+(run.striking?' · striking equipped':' · equip striking rune')+'</button><div class="actions"><button data-ninth="1" '+(run.striking?'':'disabled')+'>Enter room 9 · '+ninthRooms[run.floor].title+'</button></div>'}
+function weaponDice(i){return run.striking&&run.runeHero===i?2:1}
+function sneakDice(){return level()>=5?2:1}
 function startGeneral(s){if(!fourthRoom()||!won(s)||!s.reward||run.general||!run.advancement?.done)return false;
  run.general={choices:[null,null,null],hero:0,done:false};s.hp=s.hp.map((hp,i)=>hp>0?hp+growth[run.picks[i]]:0);note(s,'Party reached level 3 · proficiency and maximum HP increased.');return true}
 function chooseGeneral(s,i,f){const a=run.general;if(!a||a.done||!Number.isInteger(i)||i<0||i>2||!Number.isInteger(f)||!generalPool[f])return false;
@@ -173,10 +209,10 @@ function chooseGeneral(s,i,f){const a=run.general;if(!a||a.done||!Number.isInteg
 function finishGeneral(s){const a=run.general;if(!a||a.done||!a.choices.every(f=>Number.isInteger(f)&&!!generalPool[f]))return false;a.done=true;s.hp=s.hp.map((hp,i)=>hp>0&&generalFeat(i)==='Toughness'?Math.min(profile(run.picks[i])[0],hp+level()):hp);return true}
 function generalPanel(){const a=run.general,i=a.hero,id=run.picks[i],p=profile(id);return '<h2>Party reached level 3!</h2><p>Choose one general feat per hero. Existing class feats and weapon upgrades stay equipped.</p><ul>'+run.picks.map((id,j)=>'<li><button data-genhero="'+j+'" aria-pressed="'+(j===i)+'">'+name(id)+' · '+(generalFeat(j)||'Choose feat')+'</button></li>').join('')+'</ul><h3>'+name(id)+'</h3><p>Max HP '+(p[0]+(generalFeat(i)==='Toughness'?3:0))+' · AC '+p[1]+' · Strike +'+p[2]+' · Speed '+speed(i)*5+' ft · Initiative +'+initiativeBonus(i)+'</p><div class="grid">'+generalPool.map(([title,desc],j)=>'<article class="card"><h3>'+title+'</h3><p>'+desc+'</p><footer><button data-genfeat="'+j+'" aria-pressed="'+(a.choices[i]===j)+'">'+(a.choices[i]===j?'✓ Selected':'Select '+title)+'</button></footer></article>').join('')+'</div><div class="actions"><button data-genfinish="1" '+(a.choices.some(f=>f===null)?'disabled':'')+'>Confirm level 3</button></div><p class="legend">Prototype: rank-2 font spells are available at level 3 using remaining casts. Other level-3 class features and skill increases are not implemented yet.</p>'}
 function enterFollowing(s,room){run.entry={hp:s.hp.slice(),font:s.font.slice(),potions:s.potions};run.room=room;preview=null;run.battle=newRoom();enemyTurn()}
-function fontRank(){return level()>=3?2:1}
+function fontRank(){return level()>=5?3:level()>=3?2:1}
 function fontRoll(s,i){let n=0;for(let j=0;j<fontRank();j++)n+=roll(s,spellDie(i));return n}
 function spellDie(i){return (hasFeat(i,'Healing Hands')||hasFeat(i,'Harming Hands'))?10:8}
-function spellDC(){return 16+level()}
+function spellDC(){return 16+level()+attrDelta(run.battle.active,4)}
 function runePanel(){return '<button data-rechoose="1">Review level 2 feat choices</button><h3>Equipment reward · +1 weapon potency rune</h3><p>Choose a hero’s weapon to upgrade. This grants a +1 item bonus to Strikes, not spell DCs.</p><div class="actions">'+run.picks.map((id,i)=>'<button data-rune="'+i+'" aria-pressed="'+(run.runeHero===i)+'">'+name(id)+(run.runeHero===i?' · equipped':'')+'</button>').join('')+'</div><div class="actions"><button data-third="1" '+(Number.isInteger(run.runeHero)?'':'disabled')+'>Enter room 3 · '+thirdRooms[run.floor].title+'</button></div>'}
 function startAdvancement(s){if(!secondRoom()||!won(s)||!s.reward||run.advancement)return false;
  run.advancement={level:2,choices:[null,null,null],done:false,hero:0,all:false};
@@ -192,7 +228,7 @@ function advancementPanel(){const a=run.advancement,i=a.hero,id=run.picks[i],p=p
 function roll(s,faces){s.rng=(Math.imul(s.rng,1664525)+1013904223)>>>0;return 1+Math.floor(s.rng/4294967296*faces)}
 function enemySquare(){return target().pos}
 function note(s,msg){s.log.unshift(msg)}
-function enemySpecs(){const map=layout().rows.join('');return seventhRoom()?[{name:'Elite skirmisher',pos:map.indexOf('A'),max:32,ac:20,attack:11,init:9,fort:9,guard:false},{name:'Iron guard',pos:map.indexOf('B'),max:36,ac:21,attack:12,init:8,fort:10,guard:true}]:sixthRoom()?
+function enemySpecs(){const map=layout().rows.join('');return tenthRoom()?[{name:['Sepulcher Warden','Drowned Warden','Iron Warlord'][run.floor],pos:map.indexOf('A'),max:100,ac:24,attack:15,init:12,fort:13,guard:true,boss:true}]:ninthRoom()?[{name:'Elite archer',pos:map.indexOf('A'),max:30,ac:21,attack:12,init:10,fort:9,guard:false},{name:'Vanguard',pos:map.indexOf('B'),max:38,ac:22,attack:13,init:9,fort:11,guard:true},{name:'Retainer',pos:map.indexOf('C'),max:26,ac:20,attack:11,init:8,fort:8,guard:false}]:eighthRoom()?[{name:'Reliquary defender',pos:map.indexOf('A'),max:37,ac:21,attack:12,init:9,fort:10,guard:true},{name:'Sentinel',pos:map.indexOf('B'),max:33,ac:20,attack:11,init:8,fort:10,guard:true}]:seventhRoom()?[{name:'Elite skirmisher',pos:map.indexOf('A'),max:32,ac:20,attack:11,init:9,fort:9,guard:false},{name:'Iron guard',pos:map.indexOf('B'),max:36,ac:21,attack:12,init:8,fort:10,guard:true}]:sixthRoom()?
  [{name:'Lookout archer',pos:map.indexOf('A'),max:22,ac:17,attack:8,init:7,fort:6,guard:false},{name:'Barricade guard',pos:map.indexOf('B'),max:28,ac:18,attack:9,init:6,fort:8,guard:true}]:
  [{name:baseFoeName(),pos:map.indexOf('A'),max:foeMax(),ac:foeAC(),attack:fifthRoom()?10:fourthRoom()?9:thirdRoom()?8:6,init:fifthRoom()?9:fourthRoom()?8:6,fort:fifthRoom()?9:fourthRoom()?7:thirdRoom()?7:5,guard:guardFight()}]}
 function initEnemies(s){if(!Array.isArray(s.enemies)){s.enemies=enemySpecs().map(e=>({...e,hp:e.max,known:[0,0,0],taunt:-1,frightened:0,exposed:false,studied:false}));if(!sixthRoom()&&Number.isFinite(s.foe)){Object.assign(s.enemies[0],{hp:s.foe,known:s.known||[0,0,0],taunt:s.taunt??-1,frightened:s.frightened||0,exposed:!!s.exposed,studied:!!s.studied})}s.target=0}return s.enemies}
@@ -204,12 +240,12 @@ function damageEnemy(s,n){const e=target(s),before=e.hp;e.hp=Math.max(0,e.hp-n);
 function enemyAt(i,s=run.battle){return initEnemies(s).findIndex(e=>e.hp>0&&e.pos===i)}
 function enemyPanel(s){return '<div class="actions">'+initEnemies(s).map((e,i)=>'<button data-target="'+i+'" aria-pressed="'+(s.target===i)+'" '+(e.hp?'':'disabled')+'>'+e.name+' · '+e.hp+'/'+e.max+' HP'+(e.frightened?' · Frightened '+e.frightened:'')+'</button>').join('')+'</div>'}
 
-function newRoom(){const s={pos:[9,18,27],rng:((seventhRoom()?0xd3a2646c:sixthRoom()?0x165667b1:fifthRoom()?0xc2b2ae35:fourthRoom()?0x27d4eb2f:thirdRoom()?0x85ebca6b:secondRoom()?0x9e3779b9:0)^run.seed^Math.imul(run.floor+1,2654435761))>>>0,actions:3,parity:0,round:1,arrived:[],reward:false,hp:run.picks.map(id=>profiles[id][0]),raised:[false,false,false],log:[],attacks:0,cursor:0};
+function newRoom(){const s={pos:[9,18,27],rng:((tenthRoom()?0xa24baed5:ninthRoom()?0x94d049bb:eighthRoom()?0x9e3779b1:seventhRoom()?0xd3a2646c:sixthRoom()?0x165667b1:fifthRoom()?0xc2b2ae35:fourthRoom()?0x27d4eb2f:thirdRoom()?0x85ebca6b:secondRoom()?0x9e3779b9:0)^run.seed^Math.imul(run.floor+1,2654435761))>>>0,actions:3,parity:0,round:1,arrived:[],reward:false,hp:run.picks.map(id=>profiles[id][0]),raised:[false,false,false],log:[],attacks:0,cursor:0};
  if((run.room||1)>1){s.hp=run.entry.hp.slice();s.font=run.entry.font.slice();s.potions=run.entry.potions}else s.potions=0;
  initEnemies(s);const initiative=Array.from({length:3+s.enemies.length},(_,i)=>i).map(i=>({i,total:roll(s,20)+(i>=3?s.enemies[i-3].init:initiativeBonus(i))})).sort((a,b)=>b.total-a.total||b.i-a.i);
  s.order=initiative.map(e=>e.i);while(s.order[s.cursor]<3&&!s.hp[s.order[s.cursor]])s.cursor++;s.active=s.order[s.cursor];note(s,'Initiative: '+initiative.map(e=>(e.i>=3?s.enemies[e.i-3].name:name(run.picks[e.i]))+' '+e.total).join(' → '));return s}
 function outcome(d,bonus,ac){let degree=d+bonus>=ac+10?3:d+bonus>=ac?2:d+bonus<=ac-10?0:1;return Math.min(3,Math.max(0,degree+(d===20?1:d===1?-1:0)))}
-function strikeRoll(s,title,bonus,ac,die,flat,sneak=false,defender=-1,melee=false){const d=roll(s,20);let deg=outcome(d,bonus,ac);
+function strikeRoll(s,title,bonus,ac,die,flat,sneak=false,defender=-1,melee=false,dice=1){const d=roll(s,20);let deg=outcome(d,bonus,ac);
  if(defender>=0&&s.ready[defender]&&deg>=2){
  const f=hasFeat(defender,'Nimble Dodge')?'Nimble Dodge':hasFeat(defender,'Reactive Shield')?'Reactive Shield':null,cover=coverAt(s.pos[defender],defender);
  if(f==='Nimble Dodge'||(f==='Reactive Shield'&&melee&&!s.raised[defender])){
@@ -217,7 +253,7 @@ function strikeRoll(s,title,bonus,ac,die,flat,sneak=false,defender=-1,melee=fals
  if(f==='Reactive Shield'||outcome(d,bonus,upgraded)<deg){s.ready[defender]=false;if(f==='Reactive Shield')s.raised[defender]=true;ac=upgraded;deg=outcome(d,bonus,ac);note(s,name(run.picks[defender])+' · '+f+' reaction');}
  }}
  s.lastDegree=deg;
- const weapon=deg>=2?roll(s,die)+flat:0,precision=deg>=2&&sneak?roll(s,6):0,multiplier=deg===3?2:1,damage=(weapon+precision)*multiplier;
+ let weapon=0,precision=0;if(deg>=2){weapon=flat;for(let j=0;j<dice;j++)weapon+=roll(s,die);if(sneak)for(let j=0;j<sneakDice();j++)precision+=roll(s,6)}const multiplier=deg===3?2:1,damage=(weapon+precision)*multiplier;
  note(s,title+' · d20 '+d+' + ('+bonus+') vs AC '+ac+' · '+['critical miss','miss','hit','critical hit'][deg]+(damage?' · '+damage+' damage'+(precision?' ('+(weapon*multiplier)+' weapon + '+(precision*multiplier)+' Sneak Attack)':''):''));return damage}
 function coverAt(i,who,heroAttack=false){const view=sight(i,who,enemySquare(),heroAttack);return view==='Line blocked'?Infinity:view.startsWith('Cover')?2:view.startsWith('Lesser')?1:0}
 function reachOK(s,extra=0){if(target(s).hp<=0)return false;const i=s.active,id=run.picks[i],[x,y]=xy(s.pos[i]),[a,b]=xy(enemySquare());const dist=Math.max(Math.abs(x-a),Math.abs(y-b));return Number.isFinite(coverAt(s.pos[i],i))&&(id==='mastermind'||dist<=(id==='reach'?2:1)+extra)}
@@ -232,7 +268,7 @@ function flank(s,i){const a=enemySquare(),p=s.pos[i];return dist(p,a)===1&&s.pos
 function off(s,i){return target(s).known[i]>0||target(s).exposed||flank(s,i)||(hasFeat(i,'Dread Striker')&&target(s).frightened>0)}
 function targetAC(s,i){return target(s).ac+coverAt(s.pos[i],i,true)-(off(s,i)?2:0)-(target(s).frightened||0)}
 function swing(s,i,reaction=false,extraDie=false){const id=run.picks[i],pf=profile(id),bonus=pf[2]-(reaction?0:penalty(s.attacks++,id==='thief')),sneak=['thief','mastermind'].includes(id)&&off(s,i);
- const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],id==='mastermind'?0:3,sneak);
+ const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],id==='mastermind'?0:3+attrDelta(i,atkAttr(id)),sneak,-1,false,weaponDice(i));
  let extra=0;if(extraDie&&damage>0){extra=roll(s,pf[3])*(s.lastDegree===3?2:1);note(s,'Proud Nail · '+extra+' extra weapon damage')}
  damageEnemy(s,damage+extra);if(damage>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}
 function defend(s,t,n){if(!n)return;
@@ -258,21 +294,30 @@ function useSkill(s,k){if(!skills(s).some(([key])=>key===k))return;const i=s.act
  else {if(k==='spell'){const d=roll(s,20),bonus=target(s).fort-(target(s).frightened||0),deg=outcome(d,bonus,spellDC()),n=Math.floor(fontRoll(s,i)*[2,1,.5,0][deg]);damageEnemy(s,n);if(n>0&&hasFeat(i,'Sap Life')&&run.floor!==0){const heal=Math.min(fontRank(),profile(run.picks[i])[0]-s.hp[i]);s.hp[i]+=heal;note(s,'Sap Life · '+heal+' HP restored')}note(s,foeName()+' Fortitude '+(d+bonus)+' vs DC '+spellDC()+' · '+n+' spell damage ('+fontRank()+'d'+spellDie(i)+')')}
  else {const t=Number(k[4]),n=Math.min(profile(run.picks[t])[0]-s.hp[t],fontRoll(s,i)+8*fontRank());s.hp[t]+=n;note(s,'Heal restores '+n+' HP to '+name(run.picks[t]));if(hasFeat(i,'Communal Healing')){const other=[0,1,2].filter(j=>j!==t&&s.hp[j]>0&&s.hp[j]<profile(run.picks[j])[0]&&dist(s.pos[i],s.pos[j])<=6&&clear(s.pos[i],s.pos[j])).sort((a,b)=>(profile(run.picks[b])[0]-s.hp[b])-(profile(run.picks[a])[0]-s.hp[a]))[0];if(other!==undefined){const heal=Math.min(fontRank(),profile(run.picks[other])[0]-s.hp[other]);s.hp[other]+=heal;note(s,'Communal Healing · '+name(run.picks[other])+' restores '+heal+' HP')}}}s.font[i]--;s.actions--}payAction()}
 
+function bossSweep(s,e){
+ note(s,e.name+' unleashes the marked sweep!');
+ for(let i=0;i<3&&e.hp>0;i++){if(s.hp[i]<=0||dist(s.pos[i],e.pos)>2||!clear(s.pos[i],e.pos))continue;
+ const ac=profile(run.picks[i])[1]+Math.max(s.raised[i]?2:0,coverAt(s.pos[i],i));
+ defend(s,i,strikeRoll(s,e.name+' sweep → '+name(run.picks[i]),e.attack-(e.frightened||0),ac,10,4,false,i,true));
+ }e.charging=false
+}
+function bossWarning(s){const e=s.enemies.find(e=>e.boss&&e.hp>0&&e.charging);return e?'<p role="status" style="color:#ffb7a3"><b>Warning: sweeping strike!</b> Red-marked squares within 10 feet of the boss are threatened on its next turn.</p>':''}
+function dangerSquare(s,i){return s.enemies.some(e=>e.boss&&e.hp>0&&e.charging&&dist(e.pos,i)<=2&&i!==e.pos&&clear(e.pos,i))}
 function enemyTurn(){const s=run.battle;kit(s);const saved=s.target;
  while(s.active>=3&&!won(s)&&s.hp.some(h=>h>0)){
  s.target=s.active-3;const e=target(s);e.exposed=false;note(s,e.name+' turn');
- if(e.hp>0)for(let shot=0;shot<2&&e.hp>0;shot++){
+ if(e.boss&&e.charging){bossSweep(s,e)}else if(e.hp>0)for(let shot=0;shot<(e.boss?1:2)&&e.hp>0;shot++){
  const targets=[0,1,2].filter(i=>s.hp[i]>0&&Number.isFinite(coverAt(s.pos[i],i))).sort((a,b)=>coverAt(s.pos[a],a)-coverAt(s.pos[b],b)||s.hp[a]-s.hp[b]);if(!targets.length){note(s,e.name+' holds position.');break}
  if(e.guard)targets.sort((a,b)=>dist(s.pos[a],e.pos)-dist(s.pos[b],e.pos));
  const t=targets[0],melee=e.guard&&dist(s.pos[t],e.pos)<=2,cover=coverAt(s.pos[t],t),ac=profile(run.picks[t])[1]+Math.max(cover,s.raised[t]?2:0);
  for(let i=0;!melee&&i<3&&e.hp>0;i++){const id=run.picks[i];if(['shield','reach'].includes(id)&&s.hp[i]&&s.ready[i]&&dist(s.pos[i],e.pos)<=(id==='reach'?2:1)&&clear(s.pos[i],e.pos)){s.ready[i]=false;swing(s,i,true)}}if(!e.hp)break;
  const taunted=e.taunt>=0&&e.taunt!==t;if(taunted)e.exposed=true;
  defend(s,t,strikeRoll(s,e.name+(e.guard?(melee?' · polearm':' · javelin'):'')+' → '+name(run.picks[t]),e.attack-penalty(shot)-(taunted?1:0)-(e.frightened||0),ac,melee?8:6,melee?2:0,false,t,melee))}
- if(e.frightened)e.frightened--;if(won(s)||!s.hp.some(h=>h>0))break;advance();
+ if(e.boss&&e.hp>0){e.bossTurns=(e.bossTurns||0)+1;if(e.bossTurns%2===1){e.charging=true;note(s,e.name+' prepares a sweeping strike. Move out of the threatened area!')}}if(e.frightened)e.frightened--;if(won(s)||!s.hp.some(h=>h>0))break;advance();
  }s.target=saved;retarget(s)}
 function payAction(){const s=run.battle;preview=null;s.actions--;retarget(s);if(!s.actions&&!won(s)){advance();enemyTurn()}}
 const xy=i=>[i%9,Math.floor(i/9)];
-function tile(i){const [x,y]=xy(i),t=layout().rows[y][x];return t==='A'||t==='B'?(enemyAt(i)>=0?'A':'.'):t}
+function tile(i){const [x,y]=xy(i),t=layout().rows[y][x];return t==='A'||t==='B'||t==='C'?(enemyAt(i)>=0?'A':'.'):t}
 function open(i){return tile(i)==='.'}
 function sight(i,who=run.battle.active,origin=enemySquare(),heroAttack=false){
  const rows=layout().rows;const [a,b]=xy(origin),[x,y]=xy(i);let bonus=0;
@@ -307,7 +352,7 @@ function partyPanel(s,combat=false){
 function healingEstimate(s,i){const missing=hpInfo(s,i).missing,lo=9*fontRank(),hi=(spellDie(s.active)+8)*fontRank();return 'Restore '+Math.min(lo,missing)+(Math.min(lo,missing)===Math.min(hi,missing)?'':'–'+Math.min(hi,missing))+' HP'+(missing<hi?' (capped at missing HP)':'')}
 function skillButtons(s){const options=skills(s);return '<div class="heal-actions">'+options.map(([key,label])=>key.startsWith('heal')?'<button data-skill="'+key+'">'+label+'<small>'+hpLabel(s,Number(key[4]))+' · '+healingEstimate(s,Number(key[4]))+'</small></button>':'<button data-skill="'+key+'">'+label+'</button>').join('')+'</div>'}
 function supplyPanel(s){
- const rows=run.picks.map((id,i)=>'<li>'+name(id)+(run.runeHero===i?' · +1 weapon':'')+' · '+hpLabel(s,i)+(['healing','harmful'].includes(id)?' · '+s.font[i]+' rank '+fontRank()+' font casts':'')+(s.potions>0&&s.hp[i]<profile(id)[0]? ' <button data-potion="'+i+'">Give potion</button>':'')+'</li>').join('');
+ const rows=run.picks.map((id,i)=>'<li>'+name(id)+(run.runeHero===i?(run.striking?' · +1 striking weapon':' · +1 weapon'):'')+' · '+hpLabel(s,i)+(['healing','harmful'].includes(id)?' · '+s.font[i]+' rank '+fontRank()+' font casts':'')+(s.potions>0&&s.hp[i]<profile(id)[0]? ' <button data-potion="'+i+'">Give potion</button>':'')+'</li>').join('');
  return '<h3>Party supplies</h3><p>Minor healing potions · '+s.potions+'</p><ul>'+rows+'</ul>';
 }
 function drink(s,i){
@@ -315,7 +360,7 @@ function drink(s,i){
  const n=Math.min(roll(s,8),profile(run.picks[i])[0]-s.hp[i]);s.hp[i]+=n;s.potions--;note(s,name(run.picks[i])+' recovers '+n+' HP from a minor healing potion.');return true;
 }
 function field(){const s=run.battle,r=layout(),win=won(s);
- let h='<header><h1>'+r.title+'</h1><small>Room '+(run.room||1)+' of 7 · Level '+level()+'</small></header>';
+ let h='<header><h1>'+r.title+'</h1><small>Room '+(run.room||1)+' of 10 · Level '+level()+'</small></header>';
  kit(s);s.potions??=s.reward&&!secondRoom()?1:0;
  h+=partyPanel(s,!win&&s.hp.some(h=>h>0));
  if(!s.hp.some(h=>h>0))return h+'<h2>Party defeated</h2><button data-retry="1">Retry encounter</button> <button data-reset="new">New draft</button>'+combatLog(s);if(win){
@@ -337,16 +382,22 @@ function field(){const s=run.battle,r=layout(),win=won(s);
  if(!run.adv4)h+='<h3>Six rooms cleared · Level 4 earned</h3><button data-fourstart="1">Level up party</button>';
  else if(!run.adv4.done)h+=panel4();
  else h+='<h3>Party advanced · Level 4</h3><ul>'+run.picks.map((id,i)=>'<li>'+name(id)+' · '+allFeats(i).join(' + ')+'</li>').join('')+'</ul><button data-seventh="1">Enter room 7 · '+seventhRooms[run.floor].title+'</button>';
- }else if(seventhRoom())h+='<h3>Seven rooms cleared · Level 4</h3><p>Next milestone: room 8 and level 5.</p><button data-reset="same">Replay seed</button> <button data-reset="new">New draft</button>';
+  }else if(seventhRoom())h+='<h3>Seven rooms cleared · Level 4</h3><button data-eighth="1">Enter room 8 · '+eighthRooms[run.floor].title+'</button>';
+ else if(eighthRoom()){
+ if(!run.adv5)h+='<h3>Eight rooms cleared · Level 5 earned</h3><button data-fivestart="1">Level up party</button>';
+ else if(!run.adv5.done)h+=panel5();
+ else h+='<h3>Party advanced · Level 5</h3>'+strikingPanel();
+ }else if(ninthRoom())h+='<h3>Nine rooms cleared · Floor boss awaits</h3><button data-tenth="1">Enter room 10 · '+tenthRooms[run.floor].title+'</button>';
+ else if(tenthRoom())h+='<h2>Floor 1 complete!</h2><p>You cleared all ten encounters in '+floors[run.floor][0]+' at level 5. The next floor is not yet implemented.</p><ul>'+run.picks.map((id,i)=>'<li>'+name(id)+' · '+allFeats(i).join(' + ')+' · '+generalFeat(i)+'</li>').join('')+'</ul><button data-reset="same">Replay seed</button> <button data-reset="new">New draft</button>';
  else h+='<button data-next="1">Enter room 2 · '+guardRooms[run.floor].title+'</button>';
  return h+supplyPanel(s)+combatLog(s);
  }
- h+=seventhRoom()?'<p>Defeat the elite skirmisher and iron guard. Their adjacent positions are ideal for Swipe.</p>':sixthRoom()?'<p>Defeat both enemies. Tap an enemy token or name to select your target. Each enemy has its own initiative and conditions.</p>':fifthRoom()?'<p>Defeat the dungeon captain. Test your level 3 general feats.</p>':fourthRoom()?'<p>Defeat the veteran marksman. Use cover to approach.</p>':thirdRoom()?'<p>Defeat the vault sentinel. Test your level 2 feats and upgraded weapon.</p>':secondRoom()?'<p>Defeat the gate guard. It holds the passage with a 10-foot polearm and throws javelins at distant heroes.</p>':'<p>Defeat the archer. Move into reach or fire from cover.</p>';
- kit(s);retarget(s);h+=enemyPanel(s);const opts=moves(),here=s.pos[s.active],selected=opts.get(preview);
+ h+=tenthRoom()?'<p>Defeat the floor boss. Watch for the telegraphed sweeping strike and move out of threatened squares.</p>':ninthRoom()?'<p>Defeat three enemies. Prioritize targets and use cover.</p>':eighthRoom()?'<p>Defeat both defenders to advance to level 5.</p>':seventhRoom()?'<p>Defeat the elite skirmisher and iron guard. Their adjacent positions are ideal for Swipe.</p>':sixthRoom()?'<p>Defeat both enemies. Tap an enemy token or name to select your target. Each enemy has its own initiative and conditions.</p>':fifthRoom()?'<p>Defeat the dungeon captain. Test your level 3 general feats.</p>':fourthRoom()?'<p>Defeat the veteran marksman. Use cover to approach.</p>':thirdRoom()?'<p>Defeat the vault sentinel. Test your level 2 feats and upgraded weapon.</p>':secondRoom()?'<p>Defeat the gate guard. It holds the passage with a 10-foot polearm and throws javelins at distant heroes.</p>':'<p>Defeat the archer. Move into reach or fire from cover.</p>';
+ kit(s);retarget(s);h+=enemyPanel(s)+bossWarning(s);const opts=moves(),here=s.pos[s.active],selected=opts.get(preview);
  h+='<p class="turn"><b>'+name(run.picks[s.active])+'</b> · '+s.actions+' actions · Round '+s.round+' · '+foeName()+' '+target(s).hp+'/'+target(s).max+' HP'+(target(s).frightened?' · Frightened '+target(s).frightened:'')+'</p><div class="mapscroll"><div class="map">';
  for(let i=0;i<45;i++){let t=tile(i),idx=s.pos.indexOf(i),ei=enemyAt(i),[x,y]=xy(i),label=ei>=0?s.enemies[ei].name:idx>=0?name(run.picks[idx]):({c:r.low,"#":r.wall,A:foeName()}[t]||"floor");
- h+='<button aria-label="'+String.fromCharCode(65+x)+(y+1)+' '+label+'" class="sq t'+(t==='#'?'wall':t==='.'?'floor':t)+(x===8?' edge':'')+(idx>=0?' pawn':'')+(i===here?' current':'')+(opts.has(i)?' available':'')+(i===preview||(ei>=0&&ei===s.target)?' selected':'')+'" '+(ei>=0?'data-target="'+ei+'"':opts.has(i)?'data-cell="'+i+'"':'disabled')+'>'+(ei>=0?((sixthRoom()||seventhRoom())?(ei===0?'A':'G'):fifthRoom()?'C':fourthRoom()?'M':thirdRoom()?'S':secondRoom()?'G':'A'):idx>=0?idx+1:({c:'▰','#':'▦',A:fifthRoom()?'C':fourthRoom()?'M':thirdRoom()?'S':secondRoom()?'G':'A'}[t]||(x===8?'›':'')))+'</button>'}
- h+='</div></div><p class="legend">▰ cover &nbsp; ▦ wall &nbsp; '+(seventhRoom()?'A elite skirmisher · G iron guard':sixthRoom()?'A lookout archer · G barricade guard':fifthRoom()?'C dungeon captain':fourthRoom()?'M veteran marksman':thirdRoom()?'S vault sentinel':secondRoom()?'G gate guard':'A archer')+' &nbsp; › east · numbered tokens match party cards</p>';
+ h+='<button aria-label="'+String.fromCharCode(65+x)+(y+1)+' '+label+'" class="sq t'+(t==='#'?'wall':t==='.'?'floor':t)+(x===8?' edge':'')+(idx>=0?' pawn':'')+(i===here?' current':'')+(opts.has(i)?' available':'')+(dangerSquare(s,i)?' danger':'')+(i===preview||(ei>=0&&ei===s.target)?' selected':'')+'" '+(ei>=0?'data-target="'+ei+'"':opts.has(i)?'data-cell="'+i+'"':'disabled')+'>'+(ei>=0?(tenthRoom()?'W':ninthRoom()?['A','G','R'][ei]:((sixthRoom()||seventhRoom()||eighthRoom())?(ei===0?'A':'G'):fifthRoom()?'C':fourthRoom()?'M':thirdRoom()?'S':secondRoom()?'G':'A')):idx>=0?idx+1:({c:'▰','#':'▦',A:fifthRoom()?'C':fourthRoom()?'M':thirdRoom()?'S':secondRoom()?'G':'A'}[t]||(x===8?'›':'')))+'</button>'}
+ h+='</div></div><p class="legend">▰ cover &nbsp; ▦ wall &nbsp; '+(tenthRoom()?'W floor boss':ninthRoom()?'A elite archer · G vanguard · R retainer':eighthRoom()?'A reliquary defender · G sentinel':seventhRoom()?'A elite skirmisher · G iron guard':sixthRoom()?'A lookout archer · G barricade guard':fifthRoom()?'C dungeon captain':fourthRoom()?'M veteran marksman':thirdRoom()?'S vault sentinel':secondRoom()?'G gate guard':'A archer')+' &nbsp; › east · numbered tokens match party cards</p>';
  h+='<p aria-live="polite">'+(selected?'Destination · '+(selected.cost*5)+' ft · '+sight(preview):'Current square · '+sight(here)+'. Tap a lit square to preview a Stride.')+'</p><div class="actions">'+(selected?'<button data-stride="1">Stride here · 1 action</button>':'')+'<button data-end="1">End turn</button></div>';
  const id=run.picks[s.active],mod=profile(id)[2]-penalty(s.attacks,id==='thief'),can=reachOK(s),shield=['shield','harmful','justice','liberation','bodyguard'].includes(id);
  h+='<div class="actions"><button data-strike="1" '+(can?'':'disabled')+'>Strike '+foeName().toLowerCase()+' ('+(mod>=0?'+':'')+mod+')</button>'+(shield?'<button data-raise="1" '+(s.raised[s.active]?'disabled':'')+'>Raise Shield · +2 AC</button>':'')+'</div><p>'+(!can?'Move into weapon reach and line of effect.':'Target AC '+targetAC(s,s.active))+'</p>'+skillButtons(s)+(['healing','harmful'].includes(id)?'<p>Rank '+fontRank()+' font casts left: '+s.font[s.active]+'</p>':'')+('<p class="legend">'+({shield:'Reactive Strike triggers automatically when the archer fires in reach.',reach:'Reactive Strike triggers automatically when the archer fires in reach.',justice:'Automatic reaction: protect an ally in your aura and retaliate if the archer is in reach.',liberation:'Automatic reaction: protect an ally in your aura and Step them away if space permits.',thief:'Flank opposite a melee ally to make the archer off-guard and enable Sneak Attack.',mastermind:'Identify the archer to enable a ranged Sneak Attack.',bodyguard:'Taunt pressures the archer when it shoots an ally.',harmful:run.floor===0?'This skeletal archer is undead. Harm cannot damage it.':'Harm targets the living archer within 30 ft.',healing:'Heal a wounded ally within 30 ft, or use Heal offensively against undead.'}[id]).replaceAll('archer',foeName().toLowerCase()).replace('gate guard fires','gate guard throws a javelin')+'</p>')+(s.potions>0&&s.hp[s.active]<profile(id)[0]?'<button data-drink="1">Drink minor healing potion · 1 action ('+s.potions+' left · '+hpInfo(s,s.active).missing+' HP missing)</button>':'')+featButtons(s,selected)+combatLog(s,8);return h}
@@ -368,7 +419,7 @@ function useFeat(s,k){const i=s.active;
  if(k==='advance'&&hasFeat(i,'Defensive Advance')&&s.actions>=2&&!s.flourish){const m=moves().get(preview);if(!m)return false;s.flourish=true;s.raised[i]=true;s.pos[i]=preview;s.parity=m.parity;note(s,'Defensive Advance · shield raised, Stride');if(reachOK(s))swing(s,i);s.actions--;payAction();return true}
  if(k==='shieldtaunt'&&hasFeat(i,'Shielding Taunt')&&!s.flourish&&dist(s.pos[i],enemySquare())<=6&&clear(s.pos[i],enemySquare())){s.flourish=true;s.raised[i]=true;target(s).taunt=i;target(s).exposed=false;note(s,'Shielding Taunt · shield raised and '+foeName()+' taunted');payAction();return true}
  if(k==='proud'&&hasFeat(i,'Proud Nail')&&proudReady(s)){s.flourish=true;swing(s,i,false,true);payAction();return true}
- if(k==='swipe'&&hasFeat(i,'Swipe')&&s.actions>=2&&!s.flourish){const other=swipeOther(s);if(other<0)return false;const original=s.target,id=run.picks[i],pf=profile(id),bonus=pf[2]-penalty(s.attacks),d=roll(s,20),base=roll(s,pf[3])+3;s.flourish=true;
+ if(k==='swipe'&&hasFeat(i,'Swipe')&&s.actions>=2&&!s.flourish){const other=swipeOther(s);if(other<0)return false;const original=s.target,id=run.picks[i],pf=profile(id),bonus=pf[2]-penalty(s.attacks),d=roll(s,20);let base=3+attrDelta(i,atkAttr(id));for(let j=0;j<weaponDice(i);j++)base+=roll(s,pf[3]);s.flourish=true;
  for(const j of [original,other]){s.target=j;const ac=targetAC(s,i),deg=outcome(d,bonus,ac),damage=deg>=2?base*(deg===3?2:1):0;note(s,'Swipe → '+foeName()+' · d20 '+d+' + ('+bonus+') vs AC '+ac+' · '+['critical miss','miss','hit','critical hit'][deg]+' · '+damage+' damage');damageEnemy(s,damage)}
  s.target=original;s.attacks+=2;s.actions--;payAction();return true}
  return false}
@@ -396,6 +447,14 @@ function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
  else if(sixthRoom()&&run.adv4&&!run.adv4.done&&d.fourfeat)choose4(run.adv4.hero,d.fourfeat);
  else if(sixthRoom()&&d.fourfinish)finish4();
  else if(sixthRoom()&&run.adv4?.done&&s.reward&&d.seventh)enterFollowing(s,7);
+ else if(seventhRoom()&&s.reward&&d.eighth)enterFollowing(s,8);
+ else if(eighthRoom()&&d.fivestart)start5(s);
+ else if(eighthRoom()&&run.adv5&&!run.adv5.done&&d.fivehero!==undefined){const i=Number(d.fivehero);if(Number.isInteger(i)&&i>=0&&i<3)run.adv5.hero=i}
+ else if(eighthRoom()&&run.adv5&&!run.adv5.done&&d.boost!==undefined)boost5(run.adv5.hero,Number(d.boost));
+ else if(eighthRoom()&&d.fivefinish)finish5(s);
+ else if(eighthRoom()&&run.adv5?.done&&Number.isInteger(run.runeHero)&&d.striking)run.striking=true;
+ else if(eighthRoom()&&run.adv5?.done&&run.striking&&s.reward&&d.ninth)enterFollowing(s,9);
+ else if(ninthRoom()&&s.reward&&d.tenth)enterFollowing(s,10);
  else if(d.potion!==undefined)drink(s,Number(d.potion));
  else if(d.next&&s.reward&&(run.room||1)===1){run.entry={hp:s.hp.slice(),font:s.font.slice(),potions:s.potions};run.room=2;preview=null;run.battle=newRoom();enemyTurn()}return true}
  kit(s);if(d.target!==undefined){const i=Number(d.target);if(Number.isInteger(i)&&s.enemies[i]?.hp>0){s.target=i;preview=null}return true}if(d.special){useFeat(s,d.special);return true}if(d.drink){if(drink(s,s.active))payAction();return true}if(d.skill){useSkill(s,d.skill);return true}if(d.strike&&reachOK(s)){swing(s,s.active);payAction();return true}
