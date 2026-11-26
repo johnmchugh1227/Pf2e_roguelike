@@ -1,0 +1,265 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expedition draft</title><style>
+*{box-sizing:border-box}body{margin:0;background:#172925;color:#f9efdc;font:16px/1.5 'DM Sans',system-ui,sans-serif}main{max-width:1040px;margin:auto;padding:clamp(16px,3vw,38px)}h1,h2,h3,p{margin:0 0 .6rem}h1,h2,h3{font-family:Georgia,serif}h1{font-size:clamp(28px,4vw,44px)}h2{font-size:25px}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #789284;margin-bottom:16px}small{color:#d7c69d}ul{padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 24px}li{border:1px solid #80948a;padding:5px 11px;border-radius:16px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card{display:flex;flex-direction:column;background:#f5edd9;color:#252d26;border-top:5px solid #c29251;padding:16px;border-radius:5px;min-width:0}.card p{font-size:15px}.card footer{margin-top:auto;padding-top:12px}button,summary{cursor:pointer;min-height:44px;font:inherit}summary{color:#335c49;padding:9px 0}button{border:1px solid #789284;background:#284c3d;color:white;border-radius:5px;padding:8px 14px}button:focus-visible,summary:focus-visible{outline:3px solid #d28825;outline-offset:2px}.card button{width:100%}button:disabled{opacity:.55;cursor:not-allowed}button[aria-pressed=true]{outline:3px solid #d5b36b;outline-offset:2px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}@media(max-width:640px){.grid{grid-template-columns:1fr}header{align-items:baseline;gap:10px}main{padding:15px}}
+.mapscroll{overflow-x:auto}.map{display:grid;grid-template-columns:repeat(9,minmax(32px,1fr));gap:2px;max-width:580px}.sq{min-height:34px;aspect-ratio:1.25;padding:0;border-radius:3px;color:#fcf8e6;font-weight:bold}.sq:disabled{opacity:1}.tfloor{background:#293d36}.available{background:#527462;border-color:#afc7a0}.twall{background:#111e1a}.tc{background:#7b6447}.tA{background:#934a3d}.edge{border-right:3px solid #dcbc71}.pawn{background:#224f65}.current,.selected{outline:3px solid #e4bc74;outline-offset:-4px}.legend{font-size:13px;color:#e3d6bb;margin:8px 0}.turn{color:#efcf95}</style><main id="app"></main><script>
+// draft.mjs — stable card IDs in display order
+const roster = [
+  ["fighter", "shield"], ["fighter", "reach"],
+  ["rogue", "thief"], ["rogue", "mastermind"],
+  ["cleric", "healing"], ["cleric", "harmful"],
+  ["champion", "justice"], ["champion", "liberation"],
+  ["guardian", "bodyguard"]
+];
+
+function dealDraft(seed, cards = roster) {
+  if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff)
+    throw new RangeError("Expected an unsigned 32-bit seed");
+  if (cards.length < 9 || new Set(cards.map(card => card[1])).size !== cards.length)
+    throw new RangeError("Draft needs at least nine distinct hero IDs");
+  let state = seed;
+  function index(size) {
+    const limit = 0x100000000 - 0x100000000 % size;
+    let sample;
+    do {
+      state = (state + 0x9e3779b9) >>> 0;
+      sample = Math.imul(state ^ (state >>> 16), 0x21f0aaad);
+      sample = Math.imul(sample ^ (sample >>> 15), 0x735a2d97);
+      sample = (sample ^ (sample >>> 15)) >>> 0;
+    } while (sample >= limit);
+    return sample % size;
+  }
+  const remaining = new Map();
+  for (const [group, id] of cards) {
+    if (!remaining.has(group)) remaining.set(group, []);
+    remaining.get(group).push(id);
+  }
+  const offers = [];
+  for (let i = 0; i < 9; i++) {
+    const groups = [...remaining.keys()];
+    const group = groups[index(groups.length)];
+    const variants = remaining.get(group);
+    const [hero] = variants.splice(index(variants.length), 1);
+    if (!variants.length) remaining.delete(group);
+    offers.push(hero);
+  }
+  return [offers.slice(0, 3), offers.slice(3, 6), offers.slice(6)];
+}
+const rows=[["Shield Fighter · longsword, steel shield","Shield Block and Reactive Strike","Stride to a doorway, Strike an enemy in reach, Raise a Shield. Save the reaction for the more dangerous trigger.","Level 2 Fighter feat. Consider Aggressive Block."],["Reach Fighter · guisarme","Reactive Strike with reach","Stride to 10 feet, Trip using the guisarme, Step to cover the route past an ally. Watch for a foe Standing.","Level 2 Fighter feat. Consider Sudden Charge if still available."],["Thief Rogue · shortsword, leather armor","Dexterity to melee damage with the shortsword and Sneak Attack","Stride around a foe into a flank, Strike, then Step toward cover.","Level 2 Rogue feat and skill choices."],["Mastermind Rogue · shortbow, arrows","Successful identification makes the target off-guard to your attacks","Recall Knowledge about the archer, Strike with the bow, then Stride behind cover.","Level 2 Rogue feat and skill choices."],["Healing Cloistered Cleric · religious symbol, staff","Healing font","When an ally is hurt, Stride into line of effect and cast two-action Heal within 30 feet.","Level 2 Cleric feat. Consider Healing Hands."],["Harmful Warpriest · mace, shield, medium armor","Harmful font and martial training","Against a living foe within 30 feet, cast two-action Harm and Raise a Shield.","Level 2 Cleric feat. Consider Harming Hands."],["Justice Champion · longsword, shield","Retributive Strike","Stride alongside the Rogue, Strike a foe within reach, Raise a Shield. Position so the ally and foe remain in your aura.","Level 2 Champion feat, then a blessing at level 3."],["Liberation Champion · spear, shield","Liberating Step","Stride toward the archer you are protecting, Strike a nearby foe, Raise a Shield. A triggered reaction can let the archer Step clear.","Level 2 Champion feat, then a blessing at level 3."],["Guardian · warhammer, shield, medium armor","Taunt and Intercept Attack","Stride beside the most exposed ally, Taunt an enemy within 30 feet, Raise a Shield.","Level 2 Guardian feat."]];
+const heroes=Object.fromEntries(roster.map(([,id],i)=>[id,rows[i]]));
+const triggers={shield:"Shield Block: with your shield raised, block incoming physical damage from an attack. Reactive Strike competes for that same reaction.",reach:"Reactive Strike: a foe within reach uses a triggering move or manipulate action, makes a ranged attack, or leaves a square during a move action.",justice:"Retributive Strike: an enemy damages your ally while both are in your aura. Reduce the damage and retaliate if the enemy is within reach.",liberation:"Liberating Step: an enemy damages, grabs, or restrains your ally while both are in your aura. The ally can Step if able.",bodyguard:"Intercept Attack: stay beside an ally so you can take the triggering physical damage for them."};
+const floors=[["Burial Crypt","Stone coffins break sightlines. Skeleton archers defend the gallery."],["Flooded Warrens","Narrow crossings bring melee heroes together. Water divides the approaches."],["Ruined Watchfort","Long firing lanes reward ranged attacks. Broken walls shelter an advance."]];
+const app=document.getElementById("app");
+const key="pf2e-crawl-draft-v1";
+function fresh(seed){return {seed,picks:[],floor:null}}
+function randomSeed(){return crypto.getRandomValues(new Uint32Array(1))[0]}
+function loadRun(){try{const s=JSON.parse(localStorage.getItem(key));const hands=dealDraft(s.seed);if(Array.isArray(s.picks)&&s.picks.length<=3&&s.picks.every((id,i)=>hands[i].includes(id))&&(s.floor===null||(s.picks.length===3&&Number.isInteger(s.floor)&&floors[s.floor])))return s}catch{}return fresh(randomSeed())}
+let run=loadRun();
+function persist(){try{localStorage.setItem(key,JSON.stringify(run))}catch{}}
+function name(id){return heroes[id][0].split(" · ")[0]}
+function heroCard(id){const [gear,feature,turn,next]=heroes[id];return '<article class="card"><h3>'+name(id)+'</h3><p>'+gear.split(" · ")[1]+'</p><p><b>'+feature+'</b></p><details><summary>Inspect hero</summary><p>'+turn+'</p>'+(triggers[id]?'<p>'+triggers[id]+'</p>':'')+'<p>'+next+'</p></details><footer><button data-pick="'+id+'">Recruit '+name(id)+'</button></footer></article>'}
+const rooms=[
+ {title:"The Coffin Gallery",low:"sarcophagus",wall:"pillar",rows:[".........","..c..#...","...c...A.","..#..c...","........."]},
+ {title:"The Sluice Crossing",low:"timber barricade",wall:"sluice gate",rows:["....#....","..c....A.","....#....","..c...c..","....#...."]},
+ {title:"The Western Rampart",low:"parapet",wall:"watchtower wall",rows:["...##....",".....c.A.","..c......","...##.c..","........."]}
+];
+const guardRooms=[
+ {title:"The Burial Chamber",low:"offering stone",wall:"crypt wall",rows:["....#....","..c.#..c.","......A..","..c.#....","....#...."]},
+ {title:"The Floodgate",low:"sandbags",wall:"floodgate pier",rows:[".........","...c.#...","......A..","...c.#...","........."]},
+ {title:"The East Gate",low:"barricade",wall:"gatehouse wall",rows:["......#..","..c......","....#.A..","..c......","......#.."]}
+];
+const thirdRooms=[
+ {title:"The Ossuary Vault",low:"bone chest",wall:"stone pier",rows:[".........","...c.#...","......A..","...c.#...","........."]},
+ {title:"The Smuggler's Cache",low:"crate",wall:"support column",rows:[".........","....#....","..c....A.","....#..c.","........."]},
+ {title:"The Armory",low:"weapon rack",wall:"stone wall",rows:[".........","..c.#....","......A..","..c.#....","........."]}
+];
+function thirdRoom(){return run.room===3}
+function secondRoom(){return run.room===2}
+function guardFight(){return secondRoom()||thirdRoom()}
+function foeMax(){return thirdRoom()?30:secondRoom()?22:18}
+function foeAC(){return thirdRoom()?17:15}
+function layout(){return (thirdRoom()?thirdRooms:secondRoom()?guardRooms:rooms)[run.floor]}
+function foeName(){return thirdRoom()?'Vault sentinel':secondRoom()?'Gate guard':'Archer'}
+// Level-one prototype profiles: maximum HP, AC, Strike modifier, weapon die.
+const profiles={shield:[20,18,9,8],reach:[20,17,9,10],thief:[17,17,7,6],mastermind:[17,17,7,6],healing:[16,15,5,4],harmful:[18,17,7,6],justice:[21,18,7,8],liberation:[21,18,7,6],bodyguard:[23,18,7,8]};
+const growth={shield:12,reach:12,thief:10,mastermind:10,healing:10,harmful:10,justice:12,liberation:12,bodyguard:15};
+const featPools={
+ shield:[['Reactive Shield',1,'Raise your shield as a reaction to a melee Strike.'],['Intimidating Strike',2,'A two-action Strike that can frighten a target.'],['Sudden Charge',1,'Combine two Strides with a melee Strike.'],['Aggressive Block',2,'Push or unbalance a foe after blocking with your shield.']],
+ reach:[['Lunge',2,'Extend your melee reach for a Strike.'],['Intimidating Strike',2,'A two-action Strike that can frighten a target.'],['Sudden Charge',1,'Combine two Strides with a melee Strike.']],
+ thief:[['Nimble Dodge',1,'Use a reaction for +2 circumstance AC against an attack.'],['Tumble Behind',1,'Make a foe off-guard to your next attack by successfully Tumbling Through.'],['Mobility',2,'Move at half Speed without triggering reactions.'],['Quick Draw',2,'Draw a weapon and Strike with it in one action.']],
+ mastermind:[['Nimble Dodge',1,'Use a reaction for +2 circumstance AC against an attack.'],['Mobility',2,'Move at half Speed without triggering reactions.'],['Quick Draw',2,'Draw a weapon and Strike with it in one action.'],['Tumble Behind',1,'Make a foe off-guard to your next attack by successfully Tumbling Through.']],
+ healing:[['Healing Hands',1,'Roll d10s instead of d8s for Heal.'],['Reach Spell',1,'Spend an extra action to extend a spell’s range.'],['Cantrip Expansion',2,'Prepare two additional cantrips.']],
+ harmful:[['Harming Hands',1,'Roll d10s instead of d8s for Harm.'],['Reach Spell',1,'Spend an extra action to extend a spell’s range.'],['Cantrip Expansion',2,'Prepare two additional cantrips.']],
+ justice:[['Defensive Advance',1,'Raise your shield, advance and Strike.'],['Nimble Reprisal',1,'Extend the options for your Retributive Strike reaction.'],['Divine Grace',2,'React to improve a saving throw against a magical effect.']],
+ liberation:[['Defensive Advance',1,'Raise your shield, advance and Strike.'],['Divine Grace',2,'React to improve a saving throw against a magical effect.']],
+ bodyguard:[['Hampering Stance',2,'Restrict movement of nearby foes.'],['Reactive Shield',1,'Raise your shield as a reaction when hit in melee.'],['Phalanx Formation',2,'You no longer grant enemies lesser cover against allied attacks.']]
+};
+const liveFeats=new Set(['Reactive Shield','Intimidating Strike','Lunge','Nimble Dodge','Healing Hands','Harming Hands','Defensive Advance','Phalanx Formation']);
+function feat(i){const f=run.advancement?.choices?.[i];return run.advancement?.done&&Number.isInteger(f)?featPools[run.picks[i]][f]?.[0]:null}
+function profile(id){const [hp,ac,attack,die]=profiles[id],bonus=run.advancement?1:0;return [hp+bonus*growth[id],ac+bonus,attack+bonus+(Number.isInteger(run.runeHero)&&run.runeHero===run.picks.indexOf(id)?1:0),die]}
+function spellDie(i){return ['Healing Hands','Harming Hands'].includes(feat(i))?10:8}
+function spellDC(){return run.advancement?18:17}
+function runePanel(){return '<button data-rechoose="1">Review level 2 feat choices</button><h3>Equipment reward · +1 weapon potency rune</h3><p>Choose a hero’s weapon to upgrade. This grants a +1 item bonus to Strikes, not spell DCs.</p><div class="actions">'+run.picks.map((id,i)=>'<button data-rune="'+i+'" aria-pressed="'+(run.runeHero===i)+'">'+name(id)+(run.runeHero===i?' · equipped':'')+'</button>').join('')+'</div><div class="actions"><button data-third="1" '+(Number.isInteger(run.runeHero)?'':'disabled')+'>Enter room 3 · '+thirdRooms[run.floor].title+'</button></div>'}
+function startAdvancement(s){if(!secondRoom()||s.foe!==0||!s.reward||run.advancement)return false;
+ run.advancement={level:2,choices:[null,null,null],done:false,hero:0,all:false};
+ s.hp=s.hp.map((hp,i)=>hp>0?hp+growth[run.picks[i]]:0);note(s,'Party reached level 2. Maximum HP, AC and Strike modifiers increased.');return true}
+function chooseFeat(a,i,f){if(a.done||!Number.isInteger(i)||i<0||i>2||!Number.isInteger(f)||!featPools[run.picks[i]][f])return false;
+ a.choices[i]=f;const next=a.choices.indexOf(null);if(next>=0)a.hero=next;a.all=false;return true}
+function finishAdvancement(a){if(a.done||!a.choices.every((f,i)=>Number.isInteger(f)&&!!featPools[run.picks[i]][f]))return false;a.done=true;return true}
+function advancementPanel(){const a=run.advancement,i=a.hero,id=run.picks[i],p=profile(id),base=profiles[id],pool=featPools[id];
+ let h='<h2>Party reached level 2!</h2><p>Choose one class feat for each hero. Your choices are saved. Feats marked playable can be used in room 3; pending feats are listed for planning only. The options below are the current prototype pool, not the complete PF2e feat list.</p><ul>'+run.picks.map((id,j)=>'<li><button data-advhero="'+j+'" aria-pressed="'+(i===j)+'">'+name(id)+' · '+(a.choices[j]===null?'Choose feat':'✓ '+featPools[id][a.choices[j]][0])+'</button></li>').join('')+'</ul>';
+ h+='<h3>'+name(id)+'</h3><p>Max HP '+base[0]+' → '+p[0]+' · AC '+base[1]+' → '+p[1]+' · Strike +'+base[2]+' → +'+p[2]+'</p><h3>'+(a.all?'All available prototype choices':'Suggested feats')+'</h3><div class="grid">';
+ h+=(a.all?pool:pool.slice(0,3)).map(([title,level,desc],f)=>'<article class="card"><h3>'+title+'</h3><p>Feat level '+level+'</p><p>'+desc+'</p><p><b>'+(liveFeats.has(title)?'Playable in room 3':'Effect pending')+'</b></p><footer><button data-feat="'+f+'" aria-pressed="'+(a.choices[i]===f)+'">'+(a.choices[i]===f?'✓ Selected':'Select '+title)+'</button></footer></article>').join('');
+ h+='</div><div class="actions"><button data-allfeats="1">'+(a.all?'Show suggested feats':'Browse all available feats ('+pool.length+')')+'</button><button data-finishadv="1" '+(a.choices.some(f=>f===null)?'disabled':'')+'>Confirm party advancement</button></div>';return h}
+function roll(s,faces){s.rng=(Math.imul(s.rng,1664525)+1013904223)>>>0;return 1+Math.floor(s.rng/4294967296*faces)}
+function enemySquare(){return layout().rows.join('').indexOf('A')}
+function note(s,msg){s.log.unshift(msg)}
+function newRoom(){const s={pos:[9,18,27],rng:((thirdRoom()?0x85ebca6b:secondRoom()?0x9e3779b9:0)^run.seed^Math.imul(run.floor+1,2654435761))>>>0,actions:3,parity:0,round:1,arrived:[],reward:false,hp:run.picks.map(id=>profiles[id][0]),foe:foeMax(),raised:[false,false,false],log:[],attacks:0,cursor:0};
+ if(guardFight()){s.hp=run.entry.hp.slice();s.font=run.entry.font.slice();s.potions=run.entry.potions}else s.potions=0;
+ const initiative=[0,1,2,3].map(i=>({i,total:roll(s,20)+(i===3?6:4)})).sort((a,b)=>b.total-a.total||b.i-a.i);
+ s.order=initiative.map(e=>e.i);while(s.order[s.cursor]!==3&&!s.hp[s.order[s.cursor]])s.cursor++;s.active=s.order[s.cursor];note(s,'Initiative: '+initiative.map(e=>(e.i===3?foeName():name(run.picks[e.i]))+' '+e.total).join(' → '));return s}
+function outcome(d,bonus,ac){let degree=d+bonus>=ac+10?3:d+bonus>=ac?2:d+bonus<=ac-10?0:1;return Math.min(3,Math.max(0,degree+(d===20?1:d===1?-1:0)))}
+function strikeRoll(s,title,bonus,ac,die,flat,sneak=false,defender=-1,melee=false){const d=roll(s,20);let deg=outcome(d,bonus,ac);
+ if(defender>=0&&s.ready[defender]&&deg>=2){
+ const f=feat(defender),cover=coverAt(s.pos[defender],defender);
+ if(f==='Nimble Dodge'||(f==='Reactive Shield'&&melee&&!s.raised[defender])){
+ const upgraded=profile(run.picks[defender])[1]+Math.max(2,cover);
+ if(f==='Reactive Shield'||outcome(d,bonus,upgraded)<deg){s.ready[defender]=false;if(f==='Reactive Shield')s.raised[defender]=true;ac=upgraded;deg=outcome(d,bonus,ac);note(s,name(run.picks[defender])+' · '+f+' reaction');}
+ }}
+ s.lastDegree=deg;
+ const weapon=deg>=2?roll(s,die)+flat:0,precision=deg>=2&&sneak?roll(s,6):0,multiplier=deg===3?2:1,damage=(weapon+precision)*multiplier;
+ note(s,title+' · d20 '+d+' + ('+bonus+') vs AC '+ac+' · '+['critical miss','miss','hit','critical hit'][deg]+(damage?' · '+damage+' damage'+(precision?' ('+(weapon*multiplier)+' weapon + '+(precision*multiplier)+' Sneak Attack)':''):''));return damage}
+function coverAt(i,who,heroAttack=false){const view=sight(i,who,enemySquare(),heroAttack);return view==='Line blocked'?Infinity:view.startsWith('Cover')?2:view.startsWith('Lesser')?1:0}
+function reachOK(s,extra=0){const i=s.active,id=run.picks[i],[x,y]=xy(s.pos[i]),[a,b]=xy(enemySquare());const dist=Math.max(Math.abs(x-a),Math.abs(y-b));return Number.isFinite(coverAt(s.pos[i],i))&&(id==='mastermind'||dist<=(id==='reach'?2:1)+extra)}
+function penalty(n,agile=false){return Math.min(2,n)*(agile?4:5)}
+function advance(){const s=run.battle;do{s.cursor=(s.cursor+1)%4;if(!s.cursor)s.round++;s.active=s.order[s.cursor]}while(s.active!==3&&s.hp[s.active]<=0);s.actions=3;s.attacks=0;s.parity=0;s.flourish=false;kit(s);if(s.active<3){s.raised[s.active]=false;s.ready[s.active]=true;s.known[s.active]=Math.max(0,s.known[s.active]-1);if(s.taunt===s.active)s.taunt=-1}else{s.exposed=false}preview=null}
+function kit(s){s.font??=[4,4,4];s.ready??=[true,true,true];s.known??=[0,0,0];s.taunt??=-1}
+function dist(p,q){let [x,y]=xy(p),[a,b]=xy(q),dx=Math.abs(x-a),dy=Math.abs(y-b);return Math.max(dx,dy)+Math.floor(Math.min(dx,dy)/2)}
+function clear(p,q){return sight(q,-1,p)!=='Line blocked'}
+function flank(s,i){const a=enemySquare(),p=s.pos[i];return dist(p,a)===1&&s.pos.some((q,j)=>j!==i&&s.hp[j]>0&&run.picks[j]!=='mastermind'&&dist(q,a)===1&&p+q===2*a)}
+function off(s,i){return s.known[i]>0||s.exposed||flank(s,i)}
+function targetAC(s,i){return foeAC()+coverAt(s.pos[i],i,true)-(off(s,i)?2:0)-(s.frightened||0)}
+function swing(s,i,reaction=false){const id=run.picks[i],pf=profile(id),bonus=pf[2]-(reaction?0:penalty(s.attacks++,id==='thief')),sneak=['thief','mastermind'].includes(id)&&off(s,i);
+ s.foe=Math.max(0,s.foe-strikeRoll(s,name(id)+(reaction?' reaction':'')+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],id==='mastermind'?0:3,sneak))}
+function defend(s,t,n){if(!n)return;
+ for(let i=0;i<3;i++){let id=run.picks[i];if(i===t||!s.ready[i]||!s.hp[i]||!['justice','liberation'].includes(id))continue;
+ if(dist(s.pos[i],enemySquare())>3||dist(s.pos[i],s.pos[t])>3||!clear(s.pos[i],enemySquare())||!clear(s.pos[i],s.pos[t]))continue;
+ n=Math.max(0,n-3);s.ready[i]=false;note(s,name(id)+' guards an ally · resistance 3');
+ if(id==='justice'&&dist(s.pos[i],enemySquare())===1)swing(s,i,true);
+ if(id==='liberation'){const from=s.pos[t],steps=Array.from({length:45},(_,k)=>k).filter(k=>open(k)&&!s.pos.includes(k)&&dist(from,k)===1&&clear(from,k)&&dist(k,enemySquare())>dist(from,enemySquare())).sort((a,b)=>coverAt(b,t)-coverAt(a,t));if(steps.length){s.pos[t]=steps[0];note(s,name(run.picks[t])+' Steps away.')}}
+ break} s.hp[t]=Math.max(0,s.hp[t]-n);if(!s.hp[t])note(s,name(run.picks[t])+' is down.')}
+function skills(s){kit(s);const i=s.active,id=run.picks[i],p=s.pos[i],list=[];
+ if(id==='mastermind'&&!s.studied)list.push(['study','Recall Knowledge · 1 action']);
+ if(id==='bodyguard'&&s.taunt!==i&&dist(p,enemySquare())<=6&&clear(p,enemySquare()))list.push(['taunt','Taunt · 1 action']);
+ if(s.actions>=2&&s.font[i]>0){
+ if(id==='healing')for(let j=0;j<3;j++)if(s.pos[j]>=0&&s.hp[j]<profile(run.picks[j])[0]&&dist(p,s.pos[j])<=6&&clear(p,s.pos[j]))list.push(['heal'+j,'Heal '+name(run.picks[j])+' · 2 actions']);
+ if(((id==='healing'&&run.floor===0)||(id==='harmful'&&run.floor!==0))&&dist(p,enemySquare())<=6&&clear(p,enemySquare()))list.push(['spell',(id==='healing'?'Damage undead with Heal':'Harm '+foeName().toLowerCase())+' · 2 actions'])}
+ return list}
+function useSkill(s,k){if(!skills(s).some(([key])=>key===k))return;const i=s.active;
+ if(k==='study'){const d=roll(s,20),deg=outcome(d,7,15);s.studied=true;s.known[i]=deg===3?10:deg===2?1:0;note(s,'Recall Knowledge · '+(d+7)+' vs 15 · '+(deg>=2?foeName()+' off-guard to you':'failed'))}
+ else if(k==='taunt'){s.taunt=i;note(s,foeName()+' taunted.')}
+ else {if(k==='spell'){const d=roll(s,20),bonus=(thirdRoom()?7:5)-(s.frightened||0),deg=outcome(d,bonus,spellDC()),n=Math.floor(roll(s,spellDie(i))*[2,1,.5,0][deg]);s.foe=Math.max(0,s.foe-n);note(s,'Fortitude '+(d+bonus)+' vs DC '+spellDC()+' · '+n+' spell damage (d'+spellDie(i)+')')}
+ else {const t=Number(k[4]),n=Math.min(profile(run.picks[t])[0]-s.hp[t],roll(s,spellDie(i))+8);s.hp[t]+=n;note(s,'Heal restores '+n+' HP to '+name(run.picks[t]))}s.font[i]--;s.actions--}payAction()}
+
+function enemyTurn(){const s=run.battle;if(s.active!==3||s.foe<=0||!s.hp.some(h=>h>0))return;
+ kit(s);for(let shot=0;shot<2&&s.foe>0;shot++){const targets=[0,1,2].filter(i=>s.hp[i]>0&&Number.isFinite(coverAt(s.pos[i],i))).sort((a,b)=>coverAt(s.pos[a],a)-coverAt(s.pos[b],b)||s.hp[a]-s.hp[b]);if(!targets.length){note(s,foeName()+' holds position.');break}
+ if(guardFight())targets.sort((a,b)=>dist(s.pos[a],enemySquare())-dist(s.pos[b],enemySquare()));
+ const t=targets[0],melee=guardFight()&&dist(s.pos[t],enemySquare())<=2,cover=coverAt(s.pos[t],t),ac=profile(run.picks[t])[1]+Math.max(cover,s.raised[t]?2:0);
+ for(let i=0;!melee&&i<3&&s.foe>0;i++){const id=run.picks[i];if(['shield','reach'].includes(id)&&s.hp[i]&&s.ready[i]&&dist(s.pos[i],enemySquare())<=(id==='reach'?2:1)&&clear(s.pos[i],enemySquare())){s.ready[i]=false;swing(s,i,true)}}if(!s.foe)break;
+ const taunted=s.taunt>=0&&s.taunt!==t;if(taunted)s.exposed=true;
+ defend(s,t,strikeRoll(s,foeName()+(guardFight()?(melee?' · polearm':' · javelin'):'')+' → '+name(run.picks[t]),(thirdRoom()?8:6)-penalty(shot)-(taunted?1:0)-(s.frightened||0),ac,melee?8:6,melee?2:0,false,t,melee))}
+ if(s.frightened)s.frightened--;if(s.hp.some(h=>h>0)&&s.foe>0)advance()}
+function payAction(){const s=run.battle;preview=null;s.actions--;if(!s.actions&&s.foe>0){advance();enemyTurn()}}
+const xy=i=>[i%9,Math.floor(i/9)];
+function tile(i){const [x,y]=xy(i);return layout().rows[y][x]}
+function open(i){return tile(i)==='.'}
+function sight(i,who=run.battle.active,origin=enemySquare(),heroAttack=false){
+ const rows=layout().rows;const [a,b]=xy(origin),[x,y]=xy(i);let bonus=0;
+ for(let j=0;j<45;j++){const t=tile(j),ally=run.battle.pos.some((pos,index)=>pos===j&&index!==who&&!(heroAttack&&feat(index)==='Phalanx Formation'))&&j!==i;if(t!== '#'&&t!=='c'&&!ally)continue;
+ const [u,v]=xy(j);let enter=0,exit=1;
+ for(const [start,delta,center] of [[a,x-a,u],[b,y-b,v]]){
+ if(!delta){if(Math.abs(start-center)>=0.5)exit=-1;continue}
+ const near=(center-.5-start)/delta,far=(center+.5-start)/delta;
+ enter=Math.max(enter,Math.min(near,far));exit=Math.min(exit,Math.max(near,far))}
+ if(exit-enter>1e-8){if(t==='#')return 'Line blocked';bonus=Math.max(bonus,t==='c'?2:1)}}
+ return ['Exposed','Lesser cover · +1 AC','Cover · +2 AC'][bonus]}
+function moves(){
+ const s=run.battle,start=s.pos[s.active],best=new Map(),out=new Map(),q=[[start,0,s.parity]];
+ while(q.length){q.sort((a,b)=>b[1]-a[1]);const [at,cost,parity]=q.pop(),key=at+':'+parity;
+ if(best.has(key))continue;best.set(key,cost);
+ if(at!==start&&!s.pos.includes(at)&&(!out.has(at)||cost<out.get(at).cost))out.set(at,{cost,parity});
+ const [x,y]=xy(at);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+ const X=x+dx,Y=y+dy;if((!dx&&!dy)||X<0||X>=9||Y<0||Y>=5)continue;
+ const dest=Y*9+X;if(!open(dest))continue;
+ const diagonal=Boolean(dx&&dy);if(diagonal&&(!open(y*9+X)||!open(Y*9+x)))continue;
+ const step=diagonal&&parity?2:1;if(cost+step<=5)q.push([dest,cost+step,diagonal?1-parity:parity])}}
+ return out}
+let preview=null;
+function combatLog(s,limit){const entries=s.log.slice(0,limit);return '<details open><summary>Combat log</summary>'+entries.map(msg=>'<p>'+msg+'</p>').join('')+'</details>'}
+function supplyPanel(s){
+ const rows=run.picks.map((id,i)=>'<li>'+name(id)+(run.runeHero===i?' · +1 weapon':'')+' · '+s.hp[i]+'/'+profile(id)[0]+' HP'+(['healing','harmful'].includes(id)?' · '+s.font[i]+' font casts':'')+(s.potions>0&&s.hp[i]<profile(id)[0]? ' <button data-potion="'+i+'">Give potion</button>':'')+'</li>').join('');
+ return '<h3>Party supplies</h3><p>Minor healing potions · '+s.potions+'</p><ul>'+rows+'</ul>';
+}
+function drink(s,i){
+ if(!Number.isInteger(i)||i<0||i>2||!s.potions||s.hp[i]>=profile(run.picks[i])[0])return false;
+ const n=Math.min(roll(s,8),profile(run.picks[i])[0]-s.hp[i]);s.hp[i]+=n;s.potions--;note(s,name(run.picks[i])+' recovers '+n+' HP from a minor healing potion.');return true;
+}
+function field(){const s=run.battle,r=layout(),win=s.foe===0;
+ let h='<header><h1>'+r.title+'</h1><small>Room '+(run.room||1)+' of 3 · Level '+(run.advancement?2:1)+'</small></header>';
+ kit(s);s.potions??=s.reward&&!secondRoom()?1:0;
+ if(!s.hp.some(h=>h>0))return h+'<h2>Party defeated</h2><button data-retry="1">Retry encounter</button> <button data-reset="new">New draft</button>'+combatLog(s);if(win){
+ h+='<h2>'+foeName()+' defeated</h2>';
+ if(!s.reward)h+='<button data-claim="1">Collect '+(secondRoom()?'two minor healing potions':'minor healing potion')+'</button>';
+ else if(secondRoom()){
+ if(!run.advancement)h+='<h3>Two rooms cleared</h3><p>Two minor healing potions collected. Your party has earned level 2.</p><button data-levelup="1">Level up party</button>';
+ else if(!run.advancement.done)h+=advancementPanel();
+ else h+='<h3>Party advanced · Level 2</h3><ul>'+run.picks.map((id,i)=>'<li>'+name(id)+' · '+featPools[id][run.advancement.choices[i]][0]+'</li>').join('')+'</ul>'+runePanel();
+ }
+ else if(thirdRoom())h+='<h3>Three rooms cleared · Level 2</h3><p>Next milestone: room 4 and level 3.</p><button data-reset="same">Replay seed</button> <button data-reset="new">New draft</button>';
+ else h+='<button data-next="1">Enter room 2 · '+guardRooms[run.floor].title+'</button>';
+ return h+supplyPanel(s)+combatLog(s);
+ }
+ h+=thirdRoom()?'<p>Defeat the vault sentinel. Test your level 2 feats and upgraded weapon.</p>':secondRoom()?'<p>Defeat the gate guard. It holds the passage with a 10-foot polearm and throws javelins at distant heroes.</p>':'<p>Defeat the archer. Move into reach or fire from cover.</p>';
+ kit(s);const opts=moves(),here=s.pos[s.active],selected=opts.get(preview);
+ h+='<p class="turn"><b>'+name(run.picks[s.active])+'</b> · '+s.actions+' actions · Round '+s.round+' · '+foeName()+' '+s.foe+'/'+foeMax()+' HP'+(s.frightened?' · Frightened '+s.frightened:'')+'</p><div class="mapscroll"><div class="map">';
+ for(let i=0;i<45;i++){let t=tile(i),idx=s.pos.indexOf(i),[x,y]=xy(i),label=idx>=0?name(run.picks[idx]):({c:r.low,"#":r.wall,A:foeName()}[t]||"floor");
+ h+='<button aria-label="'+String.fromCharCode(65+x)+(y+1)+' '+label+'" class="sq t'+(t==='#'?'wall':t==='.'?'floor':t)+(x===8?' edge':'')+(idx>=0?' pawn':'')+(i===here?' current':'')+(opts.has(i)?' available':'')+(i===preview?' selected':'')+'" '+(opts.has(i)?'data-cell="'+i+'"':'disabled')+'>'+(idx>=0?idx+1:({c:'▰','#':'▦',A:thirdRoom()?'S':secondRoom()?'G':'A'}[t]||(x===8?'›':'')))+'</button>'}
+ h+='</div></div><p class="legend">▰ cover &nbsp; ▦ wall &nbsp; '+(thirdRoom()?'S vault sentinel':secondRoom()?'G gate guard':'A archer')+' &nbsp; › east<br>'+run.picks.map((id,i)=>(i+1)+' '+name(id)+' '+s.hp[i]+' HP').join(' · ')+'</p>';
+ h+='<p aria-live="polite">'+(selected?'Destination · '+(selected.cost*5)+' ft · '+sight(preview):'Current square · '+sight(here)+'. Tap a lit square to preview a Stride.')+'</p><div class="actions">'+(selected?'<button data-stride="1">Stride here · 1 action</button>':'')+'<button data-end="1">End turn</button></div>';
+ const id=run.picks[s.active],mod=profile(id)[2]-penalty(s.attacks,id==='thief'),can=reachOK(s),shield=['shield','harmful','justice','liberation','bodyguard'].includes(id);
+ h+='<div class="actions"><button data-strike="1" '+(can?'':'disabled')+'>Strike '+foeName().toLowerCase()+' ('+(mod>=0?'+':'')+mod+')</button>'+(shield?'<button data-raise="1" '+(s.raised[s.active]?'disabled':'')+'>Raise Shield · +2 AC</button>':'')+'</div><p>'+(!can?'Move into weapon reach and line of effect.':'Target AC '+targetAC(s,s.active))+'</p>'+skills(s).map(([key,label])=>'<button data-skill="'+key+'">'+label+'</button>').join(' ')+(['healing','harmful'].includes(id)?'<p>Font casts left: '+s.font[s.active]+'</p>':'')+('<p class="legend">'+({shield:'Reactive Strike triggers automatically when the archer fires in reach.',reach:'Reactive Strike triggers automatically when the archer fires in reach.',justice:'Automatic reaction: protect an ally in your aura and retaliate if the archer is in reach.',liberation:'Automatic reaction: protect an ally in your aura and Step them away if space permits.',thief:'Flank opposite a melee ally to make the archer off-guard and enable Sneak Attack.',mastermind:'Identify the archer to enable a ranged Sneak Attack.',bodyguard:'Taunt pressures the archer when it shoots an ally.',harmful:run.floor===0?'This skeletal archer is undead. Harm cannot damage it.':'Harm targets the living archer within 30 ft.',healing:'Heal a wounded ally within 30 ft, or use Heal offensively against undead.'}[id]).replaceAll('archer',foeName().toLowerCase()).replace('gate guard fires','gate guard throws a javelin')+'</p>')+(s.potions>0&&s.hp[s.active]<profile(id)[0]?'<button data-drink="1">Drink minor healing potion · 1 action ('+s.potions+' left)</button>':'')+featButtons(s,selected)+combatLog(s,8);return h}
+function featButtons(s,selected){const f=feat(s.active);
+ if(!f)return '';
+ let h='<p>Selected feat: '+f+(liveFeats.has(f)?'':' · effect pending')+'</p>';
+ if(f==='Lunge')h+='<button data-special="lunge" '+(reachOK(s,1)?'':'disabled')+'>Lunge · 1 action</button>';
+ if(f==='Intimidating Strike')h+='<button data-special="fear" '+(s.actions>=2&&reachOK(s)?'':'disabled')+'>Intimidating Strike · 2 actions</button>';
+ if(f==='Defensive Advance')h+='<button data-special="advance" '+(s.actions>=2&&selected&&!s.flourish?'':'disabled')+'>Defensive Advance to selected square · 2 actions</button>';
+ return h}
+function useFeat(s,k){const f=feat(s.active);
+ if(k==='lunge'&&f==='Lunge'&&reachOK(s,1)){note(s,'Lunge');swing(s,s.active);payAction();return true}
+ if(k==='fear'&&f==='Intimidating Strike'&&s.actions>=2&&reachOK(s)){const before=s.foe;swing(s,s.active);if(s.foe<before){s.frightened=Math.max(s.frightened||0,s.lastDegree===3?2:1);note(s,'Intimidating Strike · frightened '+s.frightened)}s.actions--;payAction();return true}
+ if(k==='advance'&&f==='Defensive Advance'&&s.actions>=2&&!s.flourish){const m=moves().get(preview);if(!m)return false;s.flourish=true;s.raised[s.active]=true;s.pos[s.active]=preview;s.parity=m.parity;note(s,'Defensive Advance · shield raised, Stride');if(reachOK(s))swing(s,s.active);s.actions--;payAction();return true}
+ return false}
+function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
+ if(!s.hp.some(h=>h>0)){if(d.retry){run.battle=newRoom();enemyTurn()}return true}if(s.foe===0){kit(s);s.potions??=s.reward&&!secondRoom()?1:0;
+ if(d.claim&&!s.reward){s.reward=true;s.potions+=secondRoom()?2:1}
+ else if(d.levelup)startAdvancement(s);
+ else if(run.advancement&&!run.advancement.done&&d.advhero!==undefined){const i=Number(d.advhero);if(Number.isInteger(i)&&i>=0&&i<3){run.advancement.hero=i;run.advancement.all=false}}
+ else if(run.advancement&&!run.advancement.done&&d.allfeats)run.advancement.all=!run.advancement.all;
+ else if(run.advancement&&!run.advancement.done&&d.feat!==undefined)chooseFeat(run.advancement,run.advancement.hero,Number(d.feat));
+ else if(run.advancement&&d.finishadv)finishAdvancement(run.advancement);
+ else if(secondRoom()&&run.advancement?.done&&d.rechoose){run.advancement.done=false;run.advancement.hero=0;run.advancement.all=false}
+ else if(secondRoom()&&run.advancement?.done&&d.rune!==undefined){const i=Number(d.rune);if(Number.isInteger(i)&&i>=0&&i<3)run.runeHero=i}
+ else if(secondRoom()&&run.advancement?.done&&d.third&&Number.isInteger(run.runeHero)){run.entry={hp:s.hp.slice(),font:s.font.slice(),potions:s.potions};run.room=3;preview=null;run.battle=newRoom();enemyTurn()}
+ else if(d.potion!==undefined)drink(s,Number(d.potion));
+ else if(d.next&&s.reward&&!guardFight()){run.entry={hp:s.hp.slice(),font:s.font.slice(),potions:s.potions};run.room=2;preview=null;run.battle=newRoom();enemyTurn()}return true}
+ kit(s);if(d.special){useFeat(s,d.special);return true}if(d.drink){if(drink(s,s.active))payAction();return true}if(d.skill){useSkill(s,d.skill);return true}if(d.strike&&reachOK(s)){swing(s,s.active);payAction();return true}
+ if(d.raise&&!s.raised[s.active]&&['shield','harmful','justice','liberation','bodyguard'].includes(run.picks[s.active])){s.raised[s.active]=true;payAction();return true}
+ if(d.cell!==undefined){let i=Number(d.cell);if(moves().has(i))preview=i}
+ else if(d.stride){const m=moves().get(preview);if(m){s.pos[s.active]=preview;s.parity=m.parity;payAction()}}
+ else if(d.end){preview=null;advance();enemyTurn()}return true}
+
+function render(){if(run.battle){app.innerHTML=field();return}const n=run.picks.length;let heading,body;if(n<3){heading='Choose hero '+(n+1)+' of 3';body=dealDraft(run.seed)[n].map(heroCard).join('')}else if(run.floor===null){heading='Choose the first floor';body=floors.map(([title,desc],i)=>'<article class="card"><h3>'+title+'</h3><p>'+desc+'</p><footer><button data-floor="'+i+'">Choose '+title+'</button></footer></article>').join('')}else{heading=floors[run.floor][0];body='<article class="card"><h3>Expedition assembled</h3><p>Your party and starting environment are selected.</p><button data-enter="1">Enter room 1</button></article>'}
+app.innerHTML='<header><h1>Expedition draft</h1><small>Seed '+run.seed+'</small></header><b>Party</b><ul>'+Array.from({length:3},(_,i)=>'<li>'+(run.picks[i]?name(run.picks[i]):'Open slot')+'</li>').join('')+'</ul><h2 id="stage" tabindex="-1">'+heading+'</h2><section class="grid">'+body+'</section>'+(run.floor!==null?'<div class="actions"><button data-reset="same">Replay seed</button><button data-reset="new">New draft</button></div>':'')}
+app.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(battleClick(b.dataset)){persist();render();return}if(b.dataset.enter&&run.floor!==null){run.battle=newRoom();enemyTurn();preview=null;persist();render();return}const n=run.picks.length;if(n<3&&dealDraft(run.seed)[n].includes(b.dataset.pick))run.picks.push(b.dataset.pick);else if(n===3&&run.floor===null&&['0','1','2'].includes(b.dataset.floor))run.floor=Number(b.dataset.floor);else if(run.floor!==null&&b.dataset.reset)run=fresh(b.dataset.reset==='same'?run.seed:randomSeed());else return;persist();render();document.getElementById('stage')?.focus()});
+if(run.battle&&!run.battle.order){run.battle=newRoom();enemyTurn();persist()}
+render();
+</script></html>
