@@ -183,8 +183,8 @@ function panel4(){const a=run.adv4,i=a.hero,id=run.picks[i],p=profile(id),pool=p
 
 const generalPool=[['Toughness','Increase maximum HP by your level. Recovery-check benefits await the dying-condition system.'],['Fleet','Increase Stride distance by 5 feet.'],['Incredible Initiative','Gain a +2 circumstance bonus to initiative.']];
 function generalFeat(i){const f=run.general?.choices?.[i];return Number.isInteger(f)?generalPool[f]?.[0]:null}
-function speed(i){return generalFeat(i)==='Fleet'?6:5}
-function initiativeBonus(i){return 4+level()-1+(generalFeat(i)==='Incredible Initiative'?2:0)}
+function speed(i){return (generalFeat(i)==='Fleet'?6:5)+Math.max(charmBonus(i,'speed'),run.battle?.tonics?.[i]?.haste?1:0)}
+function initiativeBonus(i){return 4+level()-1+Math.max(generalFeat(i)==='Incredible Initiative'?2:0,charmBonus(i,'initiative'))}
 const attributes=['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'];
 // Prototype inferred starting modifiers; full character ancestry/attribute generation is future work.
 const baseAttrs={shield:[4,1,2,0,1,1],reach:[4,2,2,0,1,0],thief:[1,4,2,0,1,1],mastermind:[0,4,1,3,1,0],healing:[0,2,1,0,4,2],harmful:[3,1,2,0,3,0],justice:[4,0,2,0,1,2],liberation:[4,0,2,0,1,2],bodyguard:[4,1,3,0,0,1]};
@@ -353,6 +353,58 @@ function formationBonus(s,e){return e.formation&&s.enemies.filter(x=>x!==e&&x.hp
 const starterWeapons={shield:['Longsword','slashing'],reach:['Guisarme','slashing'],thief:['Shortsword','piercing'],mastermind:['Shortbow','piercing'],healing:['Staff','bludgeoning'],harmful:['Mace','bludgeoning'],justice:['Longsword','slashing'],liberation:['Spear','piercing'],bodyguard:['Warhammer','bludgeoning']};
 // Prototype item catalog: weapon families retain the hero's attack style, reach and feat compatibility.
 const lootItems={
+ ...Object.fromEntries([
+ ['sunblade','Dawnsteel sword','slashing',8,'martial',3,{crypt:true,rider:'vitality',amount:2,vs:'undead'},'+2 vitality damage against undead'],
+ ['coldmace','Frostbound mace','bludgeoning',8,'martial',2,{rider:'cold',amount:1},'+1 cold damage on hit'],
+ ['emberaxe','Ember axe','slashing',8,'martial',2,{rider:'fire',amount:1},'+1 fire damage on hit'],
+ ['shockpick','Storm pick','piercing',6,'martial',2,{rider:'electricity',amount:2},'+2 electricity damage on hit'],
+ ['sentinel','Sentinel flail','bludgeoning',8,'martial',1,{react:2},'+2 damage on reaction Strikes'],
+ ['executioner','Executioner axe','slashing',8,'martial',3,{wounded:2},'+2 damage against foes at half HP or less'],
+ ['gravestone','Gravestone maul','bludgeoning',10,'reach',3,{crypt:true,react:2},'reach and Trip; +2 damage on reaction Strikes'],
+ ['emberpole','Ember glaive','slashing',10,'reach',2,{rider:'fire',amount:1},'reach and Trip; +1 fire damage on hit'],
+ ['thornpole','Thorn pike','piercing',10,'reach',2,{wounded:2},'reach and Trip; +2 damage against foes at half HP or less'],
+ ['ghostdagger','Ghostlight dagger','piercing',6,'thief',2,{crypt:true,rider:'vitality',amount:2,vs:'undead'},'+2 vitality damage against undead'],
+ ['emberknife','Cinder knife','slashing',6,'thief',2,{rider:'fire',amount:1},'+1 fire damage on hit'],
+ ['duelingknife','Dueling dagger','piercing',6,'thief',1,{flanked:2},'+2 damage while flanking'],
+ ['sunbow','Dawnstring bow','piercing',6,'mastermind',2,{crypt:true,rider:'vitality',amount:2,vs:'undead'},'+2 vitality damage against undead'],
+ ['stormbow','Stormstring bow','piercing',6,'mastermind',2,{rider:'electricity',amount:1},'+1 electricity damage on hit'],
+ ['huntingbow','Hunter shortbow','piercing',6,'mastermind',1,{wounded:2},'+2 damage against foes at half HP or less'],
+ ['froststaff','Frostwood staff','bludgeoning',6,'healing',2,{rider:'cold',amount:1},'+1 cold damage on hit'],
+ ['sunstaff','Consecrated staff','bludgeoning',6,'healing',2,{crypt:true,rider:'vitality',amount:2,vs:'undead'},'+2 vitality damage against undead'],
+ ['ironstaff','Pilgrim staff','bludgeoning',6,'healing',1,{wounded:2},'+2 damage against foes at half HP or less']
+ ].map(([key,name,type,die,role,min,effect,desc])=>[key,{name,kind:'weapon',type,die,ids:role==='martial'?['shield','justice','liberation','bodyguard','harmful']:[role],min,...effect,desc:'d'+die+' '+type+'; '+desc+'.'}])),
+ ...Object.fromEntries([
+ ['quickboots','Wayfarer boots',2,{speed:1},'+5 feet Speed (item bonus)'],
+ ['catseye','Cat-eye brooch',1,{reflex:1},'+1 Reflex saves'],
+ ['watchring','Watchman ring',1,{initiative:1},'+1 initiative'],
+ ['climbers','Climber gloves',1,{athletics:1},'+1 Trip and Grapple checks'],
+ ['slick','Slippery sash',1,{escape:1},'+1 Escape checks'],
+ ['ironband','Iron band',3,{physical:1},'Resistance 1 to physical attacks; highest resistance applies'],
+ ['fireward','Emberward ring',1,{fire:2},'Resistance 2 to fire'],
+ ['coldward','Frostward ring',1,{cold:2},'Resistance 2 to cold'],
+ ['toxinward','Viper fang pendant',1,{poison:1},'Resistance 1 to poison damage'],
+ ['leechward','Bloodstone seal',1,{bleed:2},'Resistance 2 to persistent bleed'],
+ ['wardensigil','Warden sigil',3,{crypt:true,void:3,will:1},'Resistance 3 to void; +1 Will'],
+ ['exorcist','Exorcist medal',2,{crypt:true,religion:2,void:1},'+2 Religion; resistance 1 to void'],
+ ['surgeon','Surgeon satchel',2,{medicine:2},'+2 Medicine'],
+ ['burglar','Locksmith gloves',2,{thievery:2},'+2 Thievery'],
+ ['surveyor','Surveyor lens',2,{crafting:2,initiative:1},'+2 Crafting; +1 initiative'],
+ ['bulwark','Bulwark badge',2,{shield:1,ids:['shield','justice','liberation','bodyguard','harmful']},'+1 Shield Block hardness'],
+ ['pilgrim','Pilgrim talisman',1,{medicine:1,will:1},'+1 Medicine and Will saves'],
+ ['acrobat','Acrobat anklet',2,{reflex:1,escape:1},'+1 Reflex and Escape'],
+ ['spellward','Spellward prism',3,{fire:2,void:2},'Resistance 2 to fire and void'],
+ ['brawler','Brawler belt',2,{athletics:1,intimidation:1},'+1 Athletics and Intimidation'],
+ ['survivor','Survivor clasp',3,{fort:1,reflex:1},'+1 Fortitude and Reflex saves']
+ ].map(([key,name,min,effect,desc])=>[key,{name,kind:'charm',min,...effect,desc:desc+'.'}])),
+ ...Object.fromEntries([
+ ['haste','Quickstep elixir',1,1,'+5 ft Speed for the encounter; does not stack with boots'],
+ ['salve','Clotting salve',1,2,'End persistent bleed on the user'],
+ ['salts','Revitalizing salts',1,2,'Clear partial paralysis; lost actions are not refunded'],
+ ['restoration','Restorative tonic',2,1,'Reduce Drained by 1; does not restore lost HP'],
+ ['elixir','Elixir of life',1,2,'Restore 1d6+2 HP per dose'],
+ ['warding','Warding draught',2,1,'Resistance 3 to fire and void for the encounter; highest resistance applies']
+ ].map(([key,name,min,qty,desc])=>[key,{name,kind:'supply',min,qty,desc:qty+' dose'+(qty===1?'':'s')+'; '+desc+'.'}])),
+
  hammer:{name:'Iron warhammer',kind:'weapon',type:'bludgeoning',die:8,ids:['shield','justice','liberation','bodyguard','harmful'],min:1,desc:'One-handed bludgeoning weapon, d8.'},
  sword:{name:'Steel longsword',kind:'weapon',type:'slashing',die:8,ids:['shield','justice','liberation','bodyguard','harmful'],min:1,desc:'One-handed slashing weapon, d8.'},
  polehammer:{name:'Ossuary polehammer',kind:'weapon',type:'bludgeoning',die:8,ids:['reach'],min:1,crypt:true,desc:'Bludgeoning, d8; retains reach and Trip in this prototype.'},
@@ -372,20 +424,23 @@ const lootItems={
  antidote:{name:'Antidote',kind:'supply',min:1,desc:'Two doses; each grants +2 item bonus against poison for the encounter.'}
 };
 function gear(i){return run.gear?.[i]||{weapons:[],weapon:null,charms:[],charm:null}}
-function ensureLoot(){run.gear??=Array.from({length:3},()=>({weapons:[],weapon:null,charms:[],charm:null}));run.supplies??={lesser:0,antidote:0}}
+function ensureLoot(){run.gear??=Array.from({length:3},()=>({weapons:[],weapon:null,charms:[],charm:null}));run.supplies??={};for(const k of Object.keys(lootItems).filter(k=>lootItems[k].kind==='supply'&&k!=='minor'))run.supplies[k]??=0;run.lootSeen??={}}
 function weaponFor(i){const id=run.picks[i],w=lootItems[gear(i).weapon];return w||{name:starterWeapons[id][0],type:starterWeapons[id][1],die:profiles[id][3]}}
 function charmBonus(i,k){return lootItems[gear(i).charm]?.[k]||0}
 function weaponType(id){return weaponFor(run.picks.indexOf(id)).type}
-function lootEligible(key,i){const m=lootItems[key],g=gear(i);return m.kind==='weapon'?m.ids.includes(run.picks[i])&&!g.weapons.includes(key):m.kind==='charm'?!g.charms.includes(key):false}
-function lootChoices(s){if(s.lootOffers)return s.lootOffers;const room=run.room||1,rank=level(),pool=Object.keys(lootItems).filter(k=>{const m=lootItems[k];return m.min<=rank&&(!m.crypt||run.floor===0)&&(m.kind==='supply'||run.picks.some((_,i)=>lootEligible(k,i)))});
- const result=[];for(const kind of ['weapon','charm','supply']){const p=pool.filter(k=>lootItems[k].kind===kind);if(p.length)result.push(seedPick(p,room,91+result.length))}
- while(result.length<3){const p=pool.filter(k=>!result.includes(k));if(!p.length)break;result.push(seedPick(p,room,91+result.length))}
+function lootEligible(key,i){const m=lootItems[key],g=gear(i);return m.kind==='weapon'?m.ids.includes(run.picks[i])&&!g.weapons.includes(key):m.kind==='charm'?(!m.ids||m.ids.includes(run.picks[i]))&&!g.charms.includes(key):false}
+function lootChoices(s){if(s.lootOffers)return s.lootOffers;ensureLoot();const room=run.room||1,rank=level(),pool=Object.keys(lootItems).filter(k=>{const m=lootItems[k];return m.min<=rank&&(!m.crypt||run.floor===0)&&(m.kind==='supply'||run.picks.some((_,i)=>lootEligible(k,i)))});
+ const result=[],seen=run.lootSeen;
+ const choose=p=>{if(!p.length)return;const oldest=Math.min(...p.map(k=>seen[k]??-1));result.push(seedPick(p.filter(k=>(seen[k]??-1)===oldest),room,91+result.length))};
+ choose(pool.filter(k=>lootItems[k].kind!=='supply'));
+ while(result.length<3){let p=pool.filter(k=>!result.includes(k)&&(lootItems[k].kind!=='supply'||!result.some(j=>lootItems[j].kind==='supply')));if(!p.length)p=pool.filter(k=>!result.includes(k));if(!p.length)break;const oldest=Math.min(...p.map(k=>seen[k]??-1)),fresh=p.filter(k=>(seen[k]??-1)===oldest),different=fresh.filter(k=>!result.some(j=>lootItems[j].kind===lootItems[k].kind));choose(different.length?different:fresh)}
  return s.lootOffers=result}
+function rememberLoot(s){ensureLoot();for(const k of lootChoices(s))run.lootSeen[k]=run.room||1}
 function claimLoot(s,key,i=-1){if(s.reward||!won(s)||!s.hp.some(Boolean))return false;ensureLoot();if(key!==null&&!lootChoices(s).includes(key))return false;
  const m=lootItems[key];if(m&&m.kind!=='supply'&&(!Number.isInteger(i)||i<0||i>=3||!lootEligible(key,i)))return false;
- s.reward=true;s.potions+=secondRoom()?2:1;repairShields(s);clearAfflictions(s);s.lootTaken=key;
+ rememberLoot(s);s.reward=true;s.potions+=secondRoom()?2:1;repairShields(s);clearAfflictions(s);s.lootTaken=key;
  if(m){if(m.kind==='weapon'||m.kind==='charm'){const g=gear(i);g[m.kind==='weapon'?'weapons':'charms'].push(key);g[m.kind]=key;note(s,name(run.picks[i])+' equips '+m.name+' · previous equipment retained')}
- else if(key==='minor')s.potions+=2;else if(key==='lesser')run.supplies.lesser++;else if(key==='antidote')run.supplies.antidote+=2;note(s,'Loot claimed · '+m.name)}
+ else if(key==='minor')s.potions+=2;else run.supplies[key]+=(m.qty??(key==='antidote'?2:1));note(s,'Loot claimed · '+m.name)}
  return true}
 function equipLoot(s,i,kind,key,combat=false){ensureLoot();if(!Number.isInteger(i)||i<0||i>=3||!['weapon','charm'].includes(kind))return false;
  const g=gear(i),allowed=kind==='weapon'?g.weapons:g.charms;if(key!==null&&!allowed.includes(key)||g[kind]===key)return false;
@@ -393,13 +448,22 @@ function equipLoot(s,i,kind,key,combat=false){ensureLoot();if(!Number.isInteger(
  if(!combat&&(!won(s)||!s.reward))return false;
  g[kind]=key;note(s,name(run.picks[i])+' equips '+(key?lootItems[key].name:kind==='weapon'?weaponFor(i).name:'no accessory'));
  if(combat)payAction();return true}
-function useSupply(s,i,key,combat){ensureLoot();if(!Number.isInteger(i)||i<0||i>=3||!s.hp[i]||!['lesser','antidote'].includes(key)||!(run.supplies[key]>0))return false;
- if(combat&&i!==s.active)return false;if(!combat&&(!won(s)||!s.reward||key==='antidote'))return false;
- if(key==='lesser'){const missing=heroMax(s,i)-s.hp[i];if(missing<=0)return false;const n=Math.min(missing,roll(s,8)+roll(s,8)+5);s.hp[i]+=n;note(s,name(run.picks[i])+' drinks lesser healing potion · '+n+' HP restored')}
- else{if(s.antidote[i])return false;s.antidote[i]=true;note(s,name(run.picks[i])+' drinks antidote · +2 to poison saves this encounter')}
- run.supplies[key]--;if(combat)payAction();return true}
+function supplyUsable(s,i,key,combat){if(!Number.isInteger(i)||i<0||i>=3||!s.hp[i]||lootItems[key]?.kind!=='supply'||key==='minor'||!(run.supplies[key]>0))return false;
+ if(combat&&(i!==s.active||s.actions<1||won(s)))return false;if(!combat&&(!won(s)||!s.reward||!['lesser','elixir'].includes(key)))return false;
+ if(key==='lesser'||key==='elixir')return s.hp[i]<heroMax(s,i);
+ if(key==='antidote')return !s.antidote[i];if(key==='haste'||key==='warding')return !s.tonics[i][key];
+ if(key==='salve')return !!s.persistent[i].bleed;if(key==='salts')return !!s.stiff[i];if(key==='restoration')return s.drained[i]>0;return false}
+function useSupply(s,i,key,combat){ensureLoot();if(!supplyUsable(s,i,key,combat))return false;
+ let detail='';if(key==='lesser'||key==='elixir'){const n=Math.min(heroMax(s,i)-s.hp[i],key==='lesser'?roll(s,8)+roll(s,8)+5:roll(s,6)+2);s.hp[i]+=n;detail=n+' HP restored'}
+ else if(key==='antidote'){s.antidote[i]=true;detail='+2 to poison saves this encounter'}
+ else if(key==='haste'||key==='warding'){s.tonics[i][key]=true;detail=key==='haste'?'+5 ft Speed this encounter':'resistance 3 fire and void this encounter'}
+ else if(key==='salve'){delete s.persistent[i].bleed;detail='persistent bleed ends'}
+ else if(key==='salts'){s.stiff[i]=0;detail='partial paralysis ends'}
+ else if(key==='restoration'){s.drained[i]--;detail='Drained reduced to '+s.drained[i]}
+ note(s,name(run.picks[i])+' uses '+lootItems[key].name+' · '+detail);run.supplies[key]--;if(combat)payAction();return true}
+function supplyButtons(s,i,combat){return Object.keys(run.supplies||{}).filter(k=>supplyUsable(s,i,k,combat)).map(k=>'<button data-supply="'+k+'" data-recipient="'+i+'">'+lootItems[k].name+' ('+run.supplies[k]+' left)'+(combat?' · 1 action':'')+'</button>').join('')}
 function lootPanel(s){const base=secondRoom()?2:1;return '<h3>Choose one reward</h3><p>Guaranteed: '+base+' minor healing potion'+(base===2?'s':'')+' and shield repair. Select one bonus reward.</p><div class="grid">'+lootChoices(s).map(key=>{const m=lootItems[key];return '<article class="card"><h3>'+m.name+'</h3><p>'+m.desc+'</p><footer>'+(m.kind==='supply'?'<button data-loot="'+key+'">Take supplies</button>':run.picks.map((id,i)=>lootEligible(key,i)?'<button data-loot="'+key+'" data-recipient="'+i+'">Equip '+name(id)+'</button>':'').join(''))+'</footer></article>'}).join('')+'</div><button data-claim="1">Take guaranteed supplies only</button>'}
-function equipmentPanel(s,combat=false){const indices=combat?[s.active]:[0,1,2],count=run.supplies||{},out=indices.map(i=>{const g=gear(i),w=weaponFor(i),nameOf=k=>lootItems[k].name;return '<div class="card"><b>'+name(run.picks[i])+'</b><p>'+w.name+' · '+weaponDice(i)+'d'+w.die+' '+w.type+(g.charm?' · '+nameOf(g.charm):'')+'</p>'+((g.weapons.length)?'<details><summary>'+ (combat?'Switch weapon · 1 action':'Equip weapon · free')+'</summary>'+[null,...g.weapons].map(k=>'<button data-equip="weapon" data-equipkey="'+(k||'starter')+'" data-recipient="'+i+'" '+(g.weapon===k?'disabled':'')+'>'+(k?nameOf(k):starterWeapons[run.picks[i]][0])+'</button>').join('')+'</details>':'')+(!combat&&g.charms.length?'<details><summary>Equip accessory · free</summary>'+[null,...g.charms].map(k=>'<button data-equip="charm" data-equipkey="'+(k||'starter')+'" data-recipient="'+i+'" '+(g.charm===k?'disabled':'')+'>'+(k?nameOf(k):'None')+'</button>').join('')+'</details>':'')+(count.lesser>0&&s.hp[i]>0&&s.hp[i]<heroMax(s,i)?'<button data-supply="lesser" data-recipient="'+i+'">Lesser healing potion ('+count.lesser+' left)'+(combat?' · 1 action':'')+'</button>':'')+(combat&&count.antidote>0&&!s.antidote[i]?'<button data-supply="antidote" data-recipient="'+i+'">Drink antidote ('+count.antidote+' left) · 1 action</button>':'')+'</div>'}).join('');
+function equipmentPanel(s,combat=false){const indices=combat?[s.active]:[0,1,2],count=run.supplies||{},out=indices.map(i=>{const g=gear(i),w=weaponFor(i),nameOf=k=>lootItems[k].name;return '<div class="card"><b>'+name(run.picks[i])+'</b><p>'+w.name+' · '+weaponDice(i)+'d'+w.die+' '+w.type+(w.desc?' · '+w.desc:'')+(g.charm?' · '+nameOf(g.charm):'')+'</p>'+((g.weapons.length)?'<details><summary>'+ (combat?'Switch weapon · 1 action':'Equip weapon · free')+'</summary>'+[null,...g.weapons].map(k=>'<button data-equip="weapon" data-equipkey="'+(k||'starter')+'" data-recipient="'+i+'" '+(g.weapon===k?'disabled':'')+'>'+(k?nameOf(k):starterWeapons[run.picks[i]][0])+'</button>').join('')+'</details>':'')+(!combat&&g.charms.length?'<details><summary>Equip accessory · free</summary>'+[null,...g.charms].map(k=>'<button data-equip="charm" data-equipkey="'+(k||'starter')+'" data-recipient="'+i+'" '+(g.charm===k?'disabled':'')+'>'+(k?nameOf(k):'None')+'</button>').join('')+'</details>':'')+supplyButtons(s,i,combat)+'</div>'}).join('');
  return '<details '+(!combat?'open':'')+'><summary>'+ (combat?'Equipment & consumables':'Party equipment')+'</summary>'+out+'</details>'}
 
 function initEnemies(s){if(!Array.isArray(s.enemies)){s.enemies=enemySpecs().map(e=>({...e,hp:e.max,known:[0,0,0],taunt:-1,frightened:0,exposed:false,studied:false}));if(!sixthRoom()&&Number.isFinite(s.foe)){Object.assign(s.enemies[0],{hp:s.foe,known:s.known||[0,0,0],taunt:s.taunt??-1,frightened:s.frightened||0,exposed:!!s.exposed,studied:!!s.studied})}s.target=0}return s.enemies}
@@ -491,7 +555,7 @@ function penalty(n,agile=false){return Math.min(2,n)*(agile?4:5)}
 function advance(){const s=run.battle;kit(s);if(won(s)||!s.hp.some(h=>h>0))return;if(s.active<3&&s.hp[s.active]>0){endHazards(s,'hero',s.active);endAfflictions(s,s.active);s.stiff[s.active]=0;}else if(s.active>=3&&s.enemies[s.active-3]?.hp>0)endHazards(s,'enemy',s.active-3);if(won(s)||!s.hp.some(Boolean))return;if(!s.hp.some(Boolean))return;if(s.active<3)expireFeint(s,s.active);if(s.active<3)for(const e of s.enemies)if(e.grabbedBy===s.active&&s.heroTurns[s.active]>=e.grabExpires)releaseGrab(e,s,'grapple expires');
  do{s.cursor=(s.cursor+1)%s.order.length;if(!s.cursor){pulseHazards(s);s.round++;if(won(s)||!s.hp.some(Boolean))return}s.active=s.order[s.cursor]}while(s.active<3?!s.hp[s.active]:!s.enemies[s.active-3].hp);
  s.actions=3;s.attacks=0;s.webEscapeBlocked=-1;s.parity=0;s.flourish=false;if(s.active<3){s.hazardTarget=-1;s.heroTurns[s.active]++;s.actions=Math.max(1,3-(s.stiff[s.active]||0));s.raised[s.active]=false;s.ready[s.active]=true;for(const e of s.enemies){e.known[s.active]=Math.max(0,e.known[s.active]-1);if(e.taunt===s.active)e.taunt=-1}}preview=null;retarget(s)}
-function kit(s){ensureLoot();s.antidote??=[false,false,false];s.hazards??=[];s.hazardTarget??=-1;s.drained??=[0,0,0];s.stiff??=[0,0,0];s.grabbed??=[null,null,null];s.venom??=[null,null,null];s.persistent??=[{},{},{}];s.webbed??=[null,null,null];s.prone??=[false,false,false];s.heroTurns??=[0,0,0];s.font??=[4,4,4];s.ready??=[true,true,true];s.shields??=run.picks.map(id=>hasShield(id)?20:null);run.blockEnabled??=[true,true,true];run.interceptEnabled??=[true,true,true];for(let i=0;i<3;i++)if(!shieldUsable(s,i))s.raised[i]=false;initEnemies(s);for(let i=0;i<3;i++){const g=s.grabbed[i],e=g&&s.enemies[g.source];if(g&&(!s.hp[i]||!e?.hp||e.restrained||!enemyInReach(e,s.pos[i],1)))releaseHeroGrab(s,i,'grip released')}for(const e of s.enemies)if(e.grabbedBy>=0&&(!s.hp[e.grabbedBy]||s.pos[e.grabbedBy]!==e.grabOrigin||!e.hp))releaseGrab(e,s,'grip released')}
+function kit(s){ensureLoot();s.tonics??=[{},{},{}];s.antidote??=[false,false,false];s.hazards??=[];s.hazardTarget??=-1;s.drained??=[0,0,0];s.stiff??=[0,0,0];s.grabbed??=[null,null,null];s.venom??=[null,null,null];s.persistent??=[{},{},{}];s.webbed??=[null,null,null];s.prone??=[false,false,false];s.heroTurns??=[0,0,0];s.font??=[4,4,4];s.ready??=[true,true,true];s.shields??=run.picks.map(id=>hasShield(id)?20:null);run.blockEnabled??=[true,true,true];run.interceptEnabled??=[true,true,true];for(let i=0;i<3;i++)if(!shieldUsable(s,i))s.raised[i]=false;initEnemies(s);for(let i=0;i<3;i++){const g=s.grabbed[i],e=g&&s.enemies[g.source];if(g&&(!s.hp[i]||!e?.hp||e.restrained||!enemyInReach(e,s.pos[i],1)))releaseHeroGrab(s,i,'grip released')}for(const e of s.enemies)if(e.grabbedBy>=0&&(!s.hp[e.grabbedBy]||s.pos[e.grabbedBy]!==e.grabOrigin||!e.hp))releaseGrab(e,s,'grip released')}
 // Room-local prototype afflictions; saves and damage never use the physical reaction pipeline.
 const venomProfiles={spider:{label:'Spider venom',dice:[4,6,6],maxTicks:3},centipede:{label:'Centipede venom',dice:[4,6,8],maxTicks:4}};
 function heroMax(s,i){return Math.max(1,profile(run.picks[i])[0]-level()*(s.drained?.[i]||0))}
@@ -502,7 +566,7 @@ function ghoulParalysis(s,i,e){const dc=10+e.attack-2,d=roll(s,20),mod=fortitude
 function drainLife(s,i,e){if(!e.hp||!s.hp[i])return;const heal=Math.min(2,e.max-e.hp);e.hp+=heal;if(heal)note(s,e.name+' Drain Life restores '+heal+' HP');
  const dc=10+e.attack-2,d=roll(s,20),mod=fortitudeMod(i),degree=outcome(d,mod,dc);note(s,name(run.picks[i])+' Drain Life save · '+(d+mod)+' vs DC '+dc);if(degree>=2||s.drained[i]>=2)return;
  const increase=Math.min(2-s.drained[i],degree===0?2:1);s.drained[i]+=increase;s.hp[i]=Math.max(0,Math.min(heroMax(s,i),s.hp[i]-level()*increase));note(s,name(run.picks[i])+' Drained '+s.drained[i]+' · max HP '+heroMax(s,i));if(!s.hp[i])note(s,name(run.picks[i])+' is down.')}
-function directDamage(s,i,n,type){const before=s.hp[i],resist=type==='void'?charmBonus(i,'void'):0;if(resist&&n>0){note(s,name(run.picks[i])+' resists '+Math.min(resist,n)+' void damage');n=Math.max(0,n-resist)}s.hp[i]=Math.max(0,before-n);note(s,name(run.picks[i])+' takes '+(before-s.hp[i])+' '+type+' damage');if(before>0&&!s.hp[i])note(s,name(run.picks[i])+' is down.');return before-s.hp[i]}
+function directDamage(s,i,n,type){const before=s.hp[i],resist=Math.max(charmBonus(i,type.startsWith('poison')?'poison':type==='persistent bleed'?'bleed':type),s.tonics?.[i]?.warding&&['fire','void'].includes(type)?3:0);if(resist&&n>0){note(s,name(run.picks[i])+' resists '+Math.min(resist,n)+' '+type+' damage');n=Math.max(0,n-resist)}s.hp[i]=Math.max(0,before-n);note(s,name(run.picks[i])+' takes '+(before-s.hp[i])+' '+type+' damage');if(before>0&&!s.hp[i])note(s,name(run.picks[i])+' is down.');return before-s.hp[i]}
 function venomDamage(s,i){const v=s.venom[i];if(v&&s.hp[i]>0)directDamage(s,i,roll(s,venomProfiles[v.kind].dice[v.stage-1]),'poison (stage '+v.stage+')')}
 function inflictVenom(s,i,e){
  if(!e.venom||!s.hp[i])return false;const dc=Math.max(12,10+e.attack-2),mod=fortitudeMod(i)+(s.antidote[i]?Math.max(0,2-charmBonus(i,'fort')):0),d=roll(s,20),deg=outcome(d,mod,dc);
@@ -528,7 +592,7 @@ function heldByEnemy(s,e){return [0,1,2].filter(i=>s.grabbed?.[i]?.source===s.en
 function releaseHeroGrab(s,i,reason){if(!s.grabbed?.[i])return;s.grabbed[i]=null;note(s,name(run.picks[i])+' · '+reason)}
 function grabHero(s,e,i){if(!e.hp||!s.hp[i]||s.grabbed[i]||heldByEnemy(s,e).length||!enemyInReach(e,s.pos[i],1))return false;
  s.grabbed[i]={source:s.enemies.indexOf(e),dc:Math.max(13,10+e.attack),expires:(e.turns||0)+1};note(s,e.name+' uses '+(e.type==='mimic'?'adhesive ':'')+'Grab · '+name(run.picks[i])+' immobilized and off-guard · Escape DC '+s.grabbed[i].dc);return true}
-function escapeGrab(s){const i=s.active,g=s.grabbed[i];if(!g||s.webEscapeBlocked===i)return false;const mod=Math.max(skillMod(i,'grapple'),attrValue(i,1)+level()+2)-penalty(s.attacks++),d=roll(s,20),deg=outcome(d,mod,g.dc);note(s,name(run.picks[i])+' Escape grab · '+(d+mod)+' vs DC '+g.dc);if(deg>=2)releaseHeroGrab(s,i,'escapes Grab');else if(deg===0)s.webEscapeBlocked=i;payAction();return true}
+function escapeGrab(s){const i=s.active,g=s.grabbed[i];if(!g||s.webEscapeBlocked===i)return false;const mod=Math.max(skillMod(i,'grapple')-charmBonus(i,'athletics'),attrValue(i,1)+level()+2)+Math.max(charmBonus(i,'athletics'),charmBonus(i,'escape'))-penalty(s.attacks++),d=roll(s,20),deg=outcome(d,mod,g.dc);note(s,name(run.picks[i])+' Escape grab · '+(d+mod)+' vs DC '+g.dc);if(deg>=2)releaseHeroGrab(s,i,'escapes Grab');else if(deg===0)s.webEscapeBlocked=i;payAction();return true}
 function awakenMimic(s,e){if(!e.dormant)return;e.dormant=false;note(s,e.name+' reveals itself!')}
 function hasShield(id){return ['shield','harmful','justice','liberation','bodyguard'].includes(id)}
 function shieldUsable(s,i){return hasShield(run.picks[i])&&(s.shields?.[i]??20)>10}
@@ -536,11 +600,11 @@ function shieldStatus(s,i){const hp=s.shields[i];return hp===0?'Destroyed':hp<=1
 function guardianResistance(i){return run.picks[i]==='bodyguard'?1+Math.floor(level()/2):0}
 function shieldBlock(s,i,n){
  if(n<=0||!s.ready[i]||!s.raised[i]||!shieldUsable(s,i)||!run.blockEnabled[i])return n;
- s.ready[i]=false;const reduced=Math.max(0,n-5);s.shields[i]=Math.max(0,s.shields[i]-reduced);
- note(s,name(run.picks[i])+' Shield Block · prevented '+Math.min(n,5)+' damage · shield '+s.shields[i]+'/20 HP');
+ s.ready[i]=false;const hardness=5+charmBonus(i,'shield'),reduced=Math.max(0,n-hardness);s.shields[i]=Math.max(0,s.shields[i]-reduced);
+ note(s,name(run.picks[i])+' Shield Block · prevented '+Math.min(n,hardness)+' damage · shield '+s.shields[i]+'/20 HP');
  if(!shieldUsable(s,i)){s.raised[i]=false;note(s,name(run.picks[i])+' shield '+(s.shields[i]===0?'destroyed':'broken')+'!')}
  return reduced}
-function hurtHero(s,i,n){const before=s.hp[i],resistance=guardianResistance(i),actual=Math.max(0,n-resistance);
+function hurtHero(s,i,n){const before=s.hp[i],resistance=Math.max(guardianResistance(i),charmBonus(i,'physical')),actual=Math.max(0,n-resistance);
  if(resistance&&n>0)note(s,name(run.picks[i])+' armor resists '+Math.min(n,resistance)+' physical damage');
  s.hp[i]=Math.max(0,s.hp[i]-actual);if(actual)note(s,name(run.picks[i])+' takes '+actual+' HP damage');if(!s.hp[i])note(s,name(run.picks[i])+' is down.');return {i,damage:before-s.hp[i]}}
 function interceptDestination(s,g,t,e){
@@ -595,10 +659,12 @@ function applyFeint(s,e,i,degree){
 function consumeFeint(e,i){if(run.picks[i]!=='mastermind'&&e.feints?.[i]?.single)e.feints[i]=null}
 function expireFeint(s,i){for(const e of s.enemies){if(e.feints?.[i]&&s.heroTurns[i]>=e.feints[i].expires)e.feints[i]=null;if(e.feintBackfire?.[i]&&s.heroTurns[i]>=e.feintBackfire[i].expires)e.feintBackfire[i]=null}}
 function targetAC(s,i){return target(s).ac+enemyShieldBonus(target(s))+formationBonus(s,target(s))+coverAt(s.pos[i],i,true)-(off(s,i)?2:0)-(target(s).frightened||0)}
+function weaponFlatBonus(s,i,e,reaction=false){const w=weaponFor(i);return (reaction?(w.react||0):0)+(e.hp<=e.max/2?(w.wounded||0):0)+(w.flanked&&flank(s,i)?w.flanked:0)}
+function weaponRider(s,i,e,degree){const w=weaponFor(i);if(!e.hp||degree<2||!w.rider||(w.vs==='undead'&&!isUndead(e)))return 0;const n=w.amount*(degree===3&&!e.critImmune?2:1);note(s,w.name+' · '+n+' '+w.rider+' damage');return damageEnemy(s,n,w.rider,false,false)}
 function swing(s,i,reaction=false,extraDie=false){const id=run.picks[i],pf=profile(id),bonus=pf[2]-(s.prone?.[i]?2:0)-(reaction?0:penalty(s.attacks++,id==='thief')),sneak=['thief','mastermind'].includes(id)&&off(s,i);
- const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],id==='mastermind'?0:3+attrDelta(i,atkAttr(id)),sneak,-1,false,weaponDice(i));
+ const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],(id==='mastermind'?0:3+attrDelta(i,atkAttr(id)))+weaponFlatBonus(s,i,e,reaction),sneak,-1,false,weaponDice(i));
  let extra=0;if(extraDie&&damage>0){extra=roll(s,pf[3])*(s.lastDegree===3&&!e.critImmune?2:1);note(s,'Proud Nail · '+extra+' extra weapon damage')}
- consumeFeint(e,i);const dealt=damageEnemy(s,damage+extra,weaponType(id));if(dealt>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){if(e.mindless)note(s,e.name+' is immune to Brutal Beating fear');else{e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}}
+ consumeFeint(e,i);const dealt=damageEnemy(s,damage+extra,weaponType(id))+weaponRider(s,i,e,s.lastDegree);if(dealt>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){if(e.mindless)note(s,e.name+' is immune to Brutal Beating fear');else{e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}}
 function defend(s,t,n,type='physical',area=false){if(!n)return {i:t,damage:0};kit(s);const physical=['physical','piercing','slashing','bludgeoning'].includes(type);const intercepted=physical&&!area?tryIntercept(s,t,n):null;if(intercepted)return intercepted;
  for(let i=0;i<3;i++){let id=run.picks[i];if(i===t||!s.ready[i]||!s.hp[i]||!['justice','liberation'].includes(id))continue;
  if(enemyDistance(target(s),s.pos[i])>3||dist(s.pos[i],s.pos[t])>3||!enemyLOS(target(s),s.pos[i])||!clear(s.pos[i],s.pos[t]))continue;
@@ -611,7 +677,7 @@ function defend(s,t,n,type='physical',area=false){if(!n)return {i:t,damage:0};ki
  break} if(physical)return hurtHero(s,t,area?n:shieldBlock(s,t,n));const damage=directDamage(s,t,n,type);return {i:t,damage}}
 function releaseGrab(e,s,why){if(!(e.grabbedBy>=0))return;e.grabbedBy=-1;e.restrained=false;note(s,e.name+' · '+why)}
 function holdEnemy(s,i){return s.enemies.find(e=>e.hp>0&&e.grabbedBy===i)}
-function skillMod(i,k){const id=run.picks[i],a=['feint','demoralize'].includes(k)?5:0,trained=k==='feint'?['thief','mastermind','justice','liberation'].includes(id):k==='demoralize'?['shield','reach','justice','liberation','bodyguard','harmful','thief'].includes(id):['shield','reach','justice','liberation','bodyguard','thief'].includes(id);return attrValue(i,a)+(trained?level()+2:0)+(k==='feint'?charmBonus(i,'deception'):k==='demoralize'?charmBonus(i,'intimidation'):0)}
+function skillMod(i,k){const id=run.picks[i],a=['feint','demoralize'].includes(k)?5:0,trained=k==='feint'?['thief','mastermind','justice','liberation'].includes(id):k==='demoralize'?['shield','reach','justice','liberation','bodyguard','harmful','thief'].includes(id):['shield','reach','justice','liberation','bodyguard','thief'].includes(id);return attrValue(i,a)+(trained?level()+2:0)+(k==='feint'?charmBonus(i,'deception'):k==='demoralize'?charmBonus(i,'intimidation'):charmBonus(i,'athletics'))}
 function skillDC(e,k){return 10+(k==='feint'?(e.perception??e.init):k==='trip'?(e.reflex??Math.max(2,e.fort-1)):k==='grapple'?e.fort:(e.will??Math.max(2,e.fort-2)))+(k==='feint'?0:formationBonus(run.battle,e))-(e.frightened||0)}
 function freeHand(id){return ['thief','mastermind','healing'].includes(id)}
 function canManeuver(s,k){const i=s.active,id=run.picks[i],e=target(s),d=enemyDistance(e,s.pos[i]);
@@ -669,7 +735,7 @@ function spinWeb(s,e,t){
  strikeRoll(s,e.name+' Web → '+name(run.picks[t]),e.attack-pen-enemyAttackPenalty(e),heroAC(s,t,coverAt(s.pos[t],t)),1,-1,false,t,false);
  if(s.lastDegree>=2){s.webbed[t]={dc:Math.max(13,10+e.attack-2),source:e.name};note(s,name(run.picks[t])+' immobilized by web · Escape DC '+s.webbed[t].dc)}
 }
-function escapeWeb(s){const i=s.active,w=s.webbed[i];if(!w)return false;const mod=Math.max(skillMod(i,'grapple'),attrValue(i,1)+level()+2)-penalty(s.attacks++),d=roll(s,20),deg=outcome(d,mod,w.dc);note(s,name(run.picks[i])+' Escape web · '+(d+mod)+' vs DC '+w.dc+' · '+['critical failure','failure','success','critical success'][deg]);if(deg>=2)s.webbed[i]=null;else if(deg===0)s.webEscapeBlocked=i;payAction();return true}
+function escapeWeb(s){const i=s.active,w=s.webbed[i];if(!w)return false;const mod=Math.max(skillMod(i,'grapple')-charmBonus(i,'athletics'),attrValue(i,1)+level()+2)+Math.max(charmBonus(i,'athletics'),charmBonus(i,'escape'))-penalty(s.attacks++),d=roll(s,20),deg=outcome(d,mod,w.dc);note(s,name(run.picks[i])+' Escape web · '+(d+mod)+' vs DC '+w.dc+' · '+['critical failure','failure','success','critical success'][deg]);if(deg>=2)s.webbed[i]=null;else if(deg===0)s.webEscapeBlocked=i;payAction();return true}
 function enemyGlyph(e,j){return e.boss?'W':['A','B','C','D','E'][j]||'F'}
 function monsterDetails(s){const e=target(s),m=monsterTypes[e.type],g=generalBestiary.find(x=>x.id===e.type);return m?'<p class="legend"><b>'+e.name+' · '+(g?'General · '+g.role:m.label)+'</b> · '+m.info+(e.formation?' · Formation '+(formationBonus(s,e)?'active':'inactive'):'')+'</p>':''}
 function healMonster(s,e){if(!(e.healCasts>0))return false;
@@ -691,7 +757,7 @@ function areaTargets(s,side,index,center,a){const source=side==='hero'?s.pos[ind
  for(let i=0;i<3;i++)if(s.hp[i]>0&&cells.has(s.pos[i])&&(a.friendlyFire||side!=='hero')&&!(side==='hero'&&i===index&&a.shape==='emanation'))out.push({side:'hero',i,pos:s.pos[i]});
  s.enemies.forEach((e,i)=>{if(e.hp>0&&footprint(e).some(p=>cells.has(p))&&(a.friendlyFire||side!=='enemy')&&!(side==='enemy'&&i===index&&a.shape==='emanation'))out.push({side:'enemy',i,pos:e.pos})});return out}
 function saveModifier(s,t,kind,origin){if(t.side==='hero'){if(kind==='fort')return fortitudeMod(t.i);const id=run.picks[t.i],expert=kind==='reflex'?['thief','mastermind','shield','reach'].includes(id):['justice','liberation','healing','harmful'].includes(id),attr=kind==='reflex'?1:4;
- return level()+(expert?4:2)+attrValue(t.i,attr)+(kind==='will'?charmBonus(t.i,'will'):0)+(kind==='reflex'&&sight(t.pos,t.i,origin).startsWith('Cover')?2:0)}
+ return level()+(expert?4:2)+attrValue(t.i,attr)+charmBonus(t.i,kind)+(kind==='reflex'&&sight(t.pos,t.i,origin).startsWith('Cover')?2:0)}
  const e=s.enemies[t.i];return (kind==='reflex'?(e.reflex??e.fort-1):kind==='fort'?e.fort:(e.will??e.fort-2))+formationBonus(s,e)-(e.frightened||0)+(kind==='reflex'&&sight(t.pos,-1,origin).startsWith('Cover')?2:0)}
 function basicDamage(n,degree){return Math.floor(n*[2,1,.5,0][degree])}
 function resolveArea(s,side,index,center,a,dc){
@@ -815,14 +881,14 @@ function hpInfo(s,i){const max=heroMax(s,i),hp=Math.max(0,Math.min(max,s.hp[i]))
 function hpLabel(s,i){const {hp,max,missing}=hpInfo(s,i);return hp+'/'+max+' HP · '+(missing?missing+' missing':'Full health')}
 function partyPanel(s,combat=false){
  const cards=run.picks.map((id,i)=>{const {hp,max,missing,pct}=hpInfo(s,i),active=combat&&s.active===i&&hp>0,state=hp===0?'Downed':active?'Active turn':missing?missing+' HP missing':'Full health';
- return '<div class="party-member'+(active?' active':'')+(!hp?' down':'')+'" aria-label="'+name(id)+' · '+hpLabel(s,i)+(active?' · Active turn':'')+'"><div class="party-name"><span class="party-number">'+(i+1)+'</span><span>'+name(id)+'</span></div><div class="party-hp"><strong>'+hp+'/'+max+'</strong><small>HP</small></div><div class="hp-track" role="progressbar" aria-label="'+name(id)+' health" aria-valuemin="0" aria-valuemax="'+max+'" aria-valuenow="'+hp+'"><div class="hp-fill'+(pct<=25?' critical':pct<=50?' wounded':'')+'" style="width:'+pct+'%"></div></div><div class="party-detail">'+state+(active&&missing?' · '+missing+' missing':'')+(combat&&hp?' · Reaction '+(s.ready[i]?'ready':'spent'):'')+(s.prone[i]?' · Prone':'')+(s.drained[i]?' · Drained '+s.drained[i]:'')+(s.stiff[i]?' · Partial paralysis '+s.stiff[i]:'')+(s.venom[i]?' · '+venomProfiles[s.venom[i].kind].label+' stage '+s.venom[i].stage+' (DC '+s.venom[i].dc+')':'')+Object.entries(s.persistent[i]).map(([k,v])=>' · Persistent '+k+' 1d'+v.die).join('')+(s.webbed[i]?' · Webbed (Escape '+s.webbed[i].dc+')':'')+(s.grabbed[i]?' · Grabbed (Escape '+s.grabbed[i].dc+')':'')+(holdEnemy(s,i)?' · Grabbing '+holdEnemy(s,i).name:'')+(combat&&flankedHero(s,i)?' · Flanked':'')+(s.enemies.some(e=>e.hp>0&&e.feintBackfire?.[i])?' · Feint backfired':'')+'</div>'+'<div class="party-detail">'+weaponFor(i).name+(s.antidote[i]?' · Antidote':'')+'</div>'+(hasShield(id)?'<div class="party-detail">Shield '+s.shields[i]+'/20 · '+shieldStatus(s,i)+'</div>':'')+'</div>'}).join('');
+ return '<div class="party-member'+(active?' active':'')+(!hp?' down':'')+'" aria-label="'+name(id)+' · '+hpLabel(s,i)+(active?' · Active turn':'')+'"><div class="party-name"><span class="party-number">'+(i+1)+'</span><span>'+name(id)+'</span></div><div class="party-hp"><strong>'+hp+'/'+max+'</strong><small>HP</small></div><div class="hp-track" role="progressbar" aria-label="'+name(id)+' health" aria-valuemin="0" aria-valuemax="'+max+'" aria-valuenow="'+hp+'"><div class="hp-fill'+(pct<=25?' critical':pct<=50?' wounded':'')+'" style="width:'+pct+'%"></div></div><div class="party-detail">'+state+(active&&missing?' · '+missing+' missing':'')+(combat&&hp?' · Reaction '+(s.ready[i]?'ready':'spent'):'')+(s.prone[i]?' · Prone':'')+(s.drained[i]?' · Drained '+s.drained[i]:'')+(s.stiff[i]?' · Partial paralysis '+s.stiff[i]:'')+(s.venom[i]?' · '+venomProfiles[s.venom[i].kind].label+' stage '+s.venom[i].stage+' (DC '+s.venom[i].dc+')':'')+Object.entries(s.persistent[i]).map(([k,v])=>' · Persistent '+k+' 1d'+v.die).join('')+(s.webbed[i]?' · Webbed (Escape '+s.webbed[i].dc+')':'')+(s.grabbed[i]?' · Grabbed (Escape '+s.grabbed[i].dc+')':'')+(holdEnemy(s,i)?' · Grabbing '+holdEnemy(s,i).name:'')+(combat&&flankedHero(s,i)?' · Flanked':'')+(s.enemies.some(e=>e.hp>0&&e.feintBackfire?.[i])?' · Feint backfired':'')+'</div>'+'<div class="party-detail">'+weaponFor(i).name+(s.antidote[i]?' · Antidote':'')+(s.tonics[i].haste?' · Quickstep':'')+(s.tonics[i].warding?' · Warded':'')+'</div>'+(hasShield(id)?'<div class="party-detail">Shield '+s.shields[i]+'/20 · '+shieldStatus(s,i)+'</div>':'')+'</div>'}).join('');
  return '<section aria-label="Party health"><div class="party-status">'+cards+'</div><p class="party-meta">Potions: '+s.potions+run.picks.map((id,i)=>['healing','harmful'].includes(id)?' · '+name(id)+': '+s.font[i]+' font casts':'').join('')+'</p></section>';
 }
 function defensePanel(s){
  const i=s.active,id=run.picks[i];if(!hasShield(id))return '';let h='<div class="actions">';
  h+='<button data-blocktoggle="'+i+'" aria-pressed="'+run.blockEnabled[i]+'">Auto Shield Block: '+(run.blockEnabled[i]?'ON':'OFF')+'</button>';
  if(id==='bodyguard')h+='<button data-intercepttoggle="'+i+'" aria-pressed="'+run.interceptEnabled[i]+'">Auto Intercept: '+(run.interceptEnabled[i]?'ON':'OFF')+'</button>';
- return h+'</div><p class="legend">Reactions share one use per turn cycle. Shield Block prevents up to 5 physical damage; excess damages both the shield and hero. Broken shields cannot be raised. Claim loot to restore shields between rooms.</p>'}
+ return h+'</div><p class="legend">Reactions share one use per turn cycle. Shield Block prevents up to '+(5+charmBonus(i,'shield'))+' physical damage; excess damages both the shield and hero. Broken shields cannot be raised. Claim loot to restore shields between rooms.</p>'}
 function healingEstimate(s,i){const missing=hpInfo(s,i).missing,lo=9*fontRank(),hi=(spellDie(s.active)+8)*fontRank();return 'Restore '+Math.min(lo,missing)+(Math.min(lo,missing)===Math.min(hi,missing)?'':'–'+Math.min(hi,missing))+' HP'+(missing<hi?' (capped at missing HP)':'')}
 function skillButtons(s){const options=skills(s);return '<div class="heal-actions">'+options.map(([key,label])=>key.startsWith('heal')?'<button data-skill="'+key+'">'+label+'<small>'+hpLabel(s,Number(key[4]))+' · '+healingEstimate(s,Number(key[4]))+'</small></button>':'<button data-skill="'+key+'">'+label+'</button>').join('')+'</div>'}
 // One shared ten-minute activity per cleared room. A separate sanctuary choice is available after rooms 5 and 9.
@@ -855,7 +921,7 @@ function recoveryPanel(s){if(!recoveryOpen(s))return '';const r=recoveryState(s)
  return out+'<p class="legend">Treat Wounds and basic treatment can revive downed heroes. Sanctuary rest does not. Unused recovery does not carry forward.</p></section>'}
 function supplyPanel(s){
  const rows=run.picks.map((id,i)=>'<li>'+name(id)+(run.runeHero===i?(run.striking?' · +1 striking weapon':' · +1 weapon'):'')+' · '+hpLabel(s,i)+(['healing','harmful'].includes(id)?' · '+s.font[i]+' rank '+fontRank()+' font casts':'')+(s.potions>0&&s.hp[i]<heroMax(s,i)? ' <button data-potion="'+i+'">Give potion</button>':'')+'</li>').join('');
- return '<h3>Party supplies</h3><p>Minor healing potions · '+s.potions+' · Lesser: '+(run.supplies?.lesser||0)+' · Antidote: '+(run.supplies?.antidote||0)+'</p><ul>'+rows+'</ul>';
+ return '<h3>Party supplies</h3><p>Minor healing potions · '+s.potions+(Object.keys(run.supplies||{}).filter(k=>run.supplies[k]>0).map(k=>' · '+lootItems[k].name+': '+run.supplies[k]).join(''))+'</p><ul>'+rows+'</ul>';
 }
 function drink(s,i){
  if(!Number.isInteger(i)||i<0||i>2||!s.potions||s.hp[i]>=heroMax(s,i))return false;
@@ -923,7 +989,7 @@ function useFeat(s,k){const i=s.active;
  if(k==='shieldtaunt'&&hasFeat(i,'Shielding Taunt')&&!s.flourish&&enemyDistance(target(s),s.pos[i])<=6&&enemyLOS(target(s),s.pos[i])){s.flourish=true;if(shieldUsable(s,i))s.raised[i]=true;applyTaunt(s,i);note(s,'Shielding Taunt · '+(shieldUsable(s,i)?'shield raised':'shield unusable'));payAction();return true}
  if(k==='proud'&&hasFeat(i,'Proud Nail')&&proudReady(s)){s.flourish=true;swing(s,i,false,true);payAction();return true}
  if(k==='swipe'&&hasFeat(i,'Swipe')&&s.actions>=2&&!s.flourish){const other=swipeOther(s);if(other<0)return false;const original=s.target,id=run.picks[i],pf=profile(id),bonus=pf[2]-penalty(s.attacks),d=roll(s,20);let base=3+attrDelta(i,atkAttr(id));for(let j=0;j<weaponDice(i);j++)base+=roll(s,pf[3]);s.flourish=true;
- for(const j of [original,other]){s.target=j;const ac=targetAC(s,i),deg=outcome(d,bonus,ac),damage=deg>=2?base*(deg===3&&!target(s).critImmune?2:1):0;note(s,'Swipe → '+foeName()+' · d20 '+d+' + ('+bonus+') vs AC '+ac+' · '+['critical miss','miss','hit','critical hit'][deg]+' · '+damage+' damage');consumeFeint(target(s),i);damageEnemy(s,damage,weaponType(id))}
+ for(const j of [original,other]){s.target=j;const ac=targetAC(s,i),deg=outcome(d,bonus,ac),damage=deg>=2?(base+weaponFlatBonus(s,i,target(s)))*(deg===3&&!target(s).critImmune?2:1):0;note(s,'Swipe → '+foeName()+' · d20 '+d+' + ('+bonus+') vs AC '+ac+' · '+['critical miss','miss','hit','critical hit'][deg]+' · '+damage+' damage');consumeFeint(target(s),i);damageEnemy(s,damage,weaponType(id));weaponRider(s,i,target(s),deg)}
  s.target=original;s.attacks+=2;s.actions--;payAction();return true}
  return false}
 function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
