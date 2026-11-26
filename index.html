@@ -355,7 +355,7 @@ function targetAC(s,i){return target(s).ac+formationBonus(s,target(s))+coverAt(s
 function swing(s,i,reaction=false,extraDie=false){const id=run.picks[i],pf=profile(id),bonus=pf[2]-(s.prone?.[i]?2:0)-(reaction?0:penalty(s.attacks++,id==='thief')),sneak=['thief','mastermind'].includes(id)&&off(s,i);
  const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],id==='mastermind'?0:3+attrDelta(i,atkAttr(id)),sneak,-1,false,weaponDice(i));
  let extra=0;if(extraDie&&damage>0){extra=roll(s,pf[3])*(s.lastDegree===3?2:1);note(s,'Proud Nail · '+extra+' extra weapon damage')}
- consumeFeint(e,i);damageEnemy(s,damage+extra,weaponType(id));if(damage>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}
+ consumeFeint(e,i);const dealt=damageEnemy(s,damage+extra,weaponType(id));if(dealt>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){if(e.mindless)note(s,e.name+' is immune to Brutal Beating fear');else{e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}}
 function defend(s,t,n){if(!n)return;kit(s);if(tryIntercept(s,t,n))return;
  for(let i=0;i<3;i++){let id=run.picks[i];if(i===t||!s.ready[i]||!s.hp[i]||!['justice','liberation'].includes(id))continue;
  if(dist(s.pos[i],enemySquare())>3||dist(s.pos[i],s.pos[t])>3||!clear(s.pos[i],enemySquare())||!clear(s.pos[i],s.pos[t]))continue;
@@ -369,7 +369,7 @@ function defend(s,t,n){if(!n)return;kit(s);if(tryIntercept(s,t,n))return;
 function releaseGrab(e,s,why){if(!(e.grabbedBy>=0))return;e.grabbedBy=-1;e.restrained=false;note(s,e.name+' · '+why)}
 function holdEnemy(s,i){return s.enemies.find(e=>e.hp>0&&e.grabbedBy===i)}
 function skillMod(i,k){const id=run.picks[i],a=['feint','demoralize'].includes(k)?5:0,trained=k==='feint'?['thief','mastermind','justice','liberation'].includes(id):k==='demoralize'?['shield','reach','justice','liberation','bodyguard','harmful','thief'].includes(id):['shield','reach','justice','liberation','bodyguard','thief'].includes(id);return attrValue(i,a)+(trained?level()+2:0)}
-function skillDC(e,k){return 10+(k==='feint'?(e.perception??e.init):k==='trip'?(e.reflex??Math.max(2,e.fort-1)):k==='grapple'?e.fort:(e.will??Math.max(2,e.fort-2)))+(k==='feint'||k==='demoralize'?0:formationBonus(run.battle,e))-(e.frightened||0)}
+function skillDC(e,k){return 10+(k==='feint'?(e.perception??e.init):k==='trip'?(e.reflex??Math.max(2,e.fort-1)):k==='grapple'?e.fort:(e.will??Math.max(2,e.fort-2)))+(k==='feint'?0:formationBonus(run.battle,e))-(e.frightened||0)}
 function freeHand(id){return ['thief','mastermind','healing'].includes(id)}
 function canManeuver(s,k){const i=s.active,id=run.picks[i],e=target(s),d=dist(s.pos[i],e.pos);
  if(e.hp<=0)return false;if(e.mindless&&['feint','demoralize'].includes(k))return false;
@@ -585,7 +585,7 @@ function featButtons(s,selected){const i=s.active,fs=allFeats(i);if(!fs.length)r
  return h}
 function useFeat(s,k){const i=s.active;
  if(k==='lunge'&&hasFeat(i,'Lunge')&&reachOK(s,1)){note(s,'Lunge');swing(s,i);payAction();return true}
- if(k==='fear'&&hasFeat(i,'Intimidating Strike')&&s.actions>=2&&reachOK(s)){const e=target(s),before=e.hp;swing(s,i);if(e.hp<before&&e.hp>0){e.frightened=Math.max(e.frightened||0,s.lastDegree===3?2:1);note(s,e.name+' · Intimidating Strike · frightened '+e.frightened)}s.actions--;payAction();return true}
+ if(k==='fear'&&hasFeat(i,'Intimidating Strike')&&s.actions>=2&&reachOK(s)){const e=target(s),before=e.hp;swing(s,i);if(e.hp<before&&e.hp>0){if(e.mindless)note(s,e.name+' is immune to Intimidating Strike fear');else{e.frightened=Math.max(e.frightened||0,s.lastDegree===3?2:1);note(s,e.name+' · Intimidating Strike · frightened '+e.frightened)}}s.actions--;payAction();return true}
  if(k==='advance'&&hasFeat(i,'Defensive Advance')&&s.actions>=2&&!s.flourish){const m=moves().get(preview);if(!m)return false;s.flourish=true;if(shieldUsable(s,i))s.raised[i]=true;heroStride(s,m);note(s,'Defensive Advance · '+(shieldUsable(s,i)?'shield raised, ':'shield unusable, ')+'Stride');if(s.hp[i]>0&&!won(s)&&reachOK(s))swing(s,i);s.actions--;payAction();return true}
  if(k==='shieldtaunt'&&hasFeat(i,'Shielding Taunt')&&!s.flourish&&dist(s.pos[i],enemySquare())<=6&&clear(s.pos[i],enemySquare())){s.flourish=true;if(shieldUsable(s,i))s.raised[i]=true;applyTaunt(s,i);note(s,'Shielding Taunt · '+(shieldUsable(s,i)?'shield raised':'shield unusable'));payAction();return true}
  if(k==='proud'&&hasFeat(i,'Proud Nail')&&proudReady(s)){s.flourish=true;swing(s,i,false,true);payAction();return true}
