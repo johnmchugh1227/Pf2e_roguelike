@@ -1,6 +1,6 @@
 # Alpha 0.1 roadmap and task queue
 
-The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **ENC-1 build 3 is ready for review. The build 2 owner playtest and BAL-1 review are open.**
+The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **UI-1 build 4 is ready for review. QA-1 is next for physical iPhone and iPad testing.**
 
 ## Release goals
 
@@ -22,7 +22,7 @@ The repository is the project record. This queue sets order and ownership. The [
 | 3 · BOSS-3 | Game Developer → lead | [Merged](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/6) · owner playtest in progress | Verify the Warlord's warning and standard decision in human play. |
 | 4 · BAL-1 | Balance Analyst → lead | Automated evidence in review on `codex/bal-1-first-floor` | [Paired results for three routes and three bosses](project.md#bal-1-results-on-build-2). Add the owner's human observations when available. The first-floor target remains open. |
 | 5 · ENC-1 | Game Developer → lead | Build 3 in review on `codex/enc-1-encounters` | [Seeded variety and stability results](project.md#enc-1-encounter-variety-and-stability). Check the seed-5 Warrens sequence on a fresh expedition. |
-| 6 · UI-1 | UI/UX Designer | Queued | Audit all six integrated surfaces in the project guide, including boss telegraphs. Finish outstanding Slate & Iron presentation and touch flows identified in play. Defer movement, attack and healing animations to polish. |
+| 6 · UI-1 | UI/UX Designer → lead | Build 4 in review on `codex/ui-1-interface` | [Six-surface interface audit](project.md#ui-1-interface-audit-on-build-4). Browser checks passed. Physical-device checks are queued under QA-1. |
 | 7 · QA-1 | QA and Testing Engineer | Queued | Play on iPhone and iPad. Record device, OS/browser, orientation, seed, party, touch targets, scroll behavior and save/reload. Cover draft through boss, reward and journal. Run relevant regressions and log blockers. |
 | 8 · REL-1 | Lead | Queued | Review release evidence for all goals, including human pacing, device usability and boss difficulty. Resolve release blockers and present Alpha 0.1 for owner approval. |
 
@@ -53,6 +53,10 @@ The repository is the project record. This queue sets order and ownership. The [
 
 **Checks run.** All 17 focused regressions passed, including the new 3,840-start encounter check and the 16 scripts in the BOSS-3 handoff. The [project guide](project.md#enc-1-encounter-variety-and-stability) records paired automated journal results, the room-8 defeat reproduction, and exact commands.
 
-**Next action.** Review ENC-1 and collect human observations from the ongoing build 2 playtest for BOSS-3 and BAL-1. UI-1 is next in the development queue.
+**UI-1 handoff.** The local review branch `codex/ui-1-interface` includes the ENC-1 and BAL-1 commits. Open its root `index.html` in a private window and confirm `Alpha 0.1 build 4` beside the draft seed. With any party in room one, choose **Read tiles**, inspect a wall and press Escape. The readout should describe the square, the action count should stay fixed, and focus should return to the toggle. In a boss room, check the exclamation mark on a threatened square with a unit on it. After a fight, preview a reward and claim it. On a phone-width screen, the recipient choices should stack. At the room-two advancement, select a feat and check that focus follows the newly active hero.
+
+**Checks run.** All 17 focused Node scripts listed in the ENC-1 handoff passed. `node tests/browser/interface.cjs` passed the [eight viewport checks](project.md#ui-1-interface-audit-on-build-4), exercising all three boss boards, tile reading, feedback, rewards, equipment and advancement. A 390 px Chrome screenshot was also visually inspected.
+
+**Next action.** Review build 4 and run QA-1 on physical iPhone and iPad hardware. The owner’s build 2 playtest and the BAL-1 and ENC-1 reviews remain open.
 
 Before a context limit approaches, warn the owner and update the active row with branch/commit, scope, evidence, unresolved decisions and the exact next action. A fresh chat starts here. Follow [repository delegation rules](../AGENTS.md): one writer per file, up to two specialists, no nested delegation. Escalate major design choices, permissions and unresolved blockers.

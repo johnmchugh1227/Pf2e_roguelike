@@ -116,6 +116,19 @@ Build 2 renders the existing `war-standard` at I3 while raised. That brings the 
 
 Preserve pixelated silhouettes, readable footing, dark terrain, parchment panels, warm selection outlines, serif headings, fallback glyphs and keyboard focus. On iPhone and iPad test portrait and landscape with touch: inspect a tile, move or target, read a warning, compare and equip a reward, and advance with minimal navigation. At the 640 px card breakpoint check stacking and control reachability. Keep board scrolling contained. Check large sprites against adjacent cells and verify text and telegraphs at actual game scale. Movement, attack and healing animations are future polish.
 
+### UI-1 interface audit on build 4
+
+| Surface | Interaction verified in Chrome |
+| --- | --- |
+| Combat HUD | Read tiles makes all 45 squares available for inspection. Tap a square or use the arrow keys to read its coordinates, occupant and terrain cues. Escape returns focus to Read tiles. Inspection preserves actions, target, RNG and legal movement buttons. Inspect target jumps between the board and inspector. |
+| Boss warnings | Warned squares on all three boss boards expose danger in their accessible names and display an exclamation mark above the sprite. The marker has its own element so flooded squares can retain the water glyph. Lower standard remains reachable during the Warlord's volley. |
+| Rewards | Preview preserves focus on the selected offer until the player claims it. At widths up to 640 px the three recipient comparisons stack vertically. |
+| Equipment | Equipping a weapon preserves the open equipment sections. If the equipped choice becomes disabled, focus returns to the section summary. |
+| Advancement | Switching heroes preserves focus on the selected tab. When a feat choice advances to another hero, focus follows that hero. Returning to the first hero shows the selected feat. |
+| Combat feedback | The board's Latest action link reaches the current recap, including the actual HP change. The inspector has a return link to the board. |
+
+Run `node tests/browser/interface.cjs` with a local Chromium browser. Set `CHROME_PATH` if the executable is outside the detected locations. The runner creates an isolated temporary browser profile. Build 4 passed at 320×568, 390×844, 640×900, 641×900, 844×390, 768×1024, 1024×768 and 1280×900. All six surfaces fit the page at these sizes. A separate 390 px visual inspection covered occupied volley squares, reward cards and advancement tabs. Physical Safari touch behavior and assistive-technology use remain for device review.
+
 ## Verification and evidence
 
 Run `node tests/<name>.cjs` from the repository root. Use the [existing scripts](../tests/) for mechanics, sprites, feedback, equipment, telemetry and balance. Most execute the inline game script with stubbed browser services. Record the exact test, seed, environment and result alongside any separate human or device observations. The [migration handoff](work.md#handoff) lists checks run against the audited snapshot.
