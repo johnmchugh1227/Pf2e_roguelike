@@ -1235,7 +1235,7 @@ function resolveDrownedIntent(s,e){
  const mark=e.bossIntent,a=drownedAttacks[mark.kind],included=[0,1,2].filter(i=>s.hp[i]>0&&mark.cells.includes(s.pos[i])),pen=included.length?tauntPenalty(s,e,included):0;
  let base=a.flat;for(let k=0;k<a.dice;k++)base+=roll(s,a.die);
  e.charging=false;e.bossIntent=null;bossLog(s,'resolved',{kind:mark.kind,targets:included.slice(),base});note(s,e.name+' unleashes '+a.name+' · '+included.length+' heroes in marked area');
- for(const i of included){if(!e.hp||!s.hp[i])continue;const old=s.hp[i],dc=a.dc-pen,save=a.save==='fort'?'fortitude':a.save,mod=saveModifier(s,{side:'hero',i,pos:s.pos[i]},save,mark.center)+divineGrace(s,i,save,mark.center,true),d=roll(s,20),degree=outcome(d,mod,dc),n=basicDamage(base,degree);note(s,name(run.picks[i])+' '+save+' save · '+(d+mod)+' vs DC '+dc+' · '+n+' bludgeoning');defend(s,i,n,'bludgeoning',true);
+ for(const i of included){if(!e.hp||!s.hp[i])continue;const old=s.hp[i],dc=a.dc-pen,save=a.save,mod=saveModifier(s,{side:'hero',i,pos:s.pos[i]},save,mark.center)+divineGrace(s,i,save,mark.center,true),d=roll(s,20),degree=outcome(d,mod,dc),n=basicDamage(base,degree);note(s,name(run.picks[i])+' '+save+' save · '+(d+mod)+' vs DC '+dc+' · '+n+' bludgeoning');defend(s,i,n,'bludgeoning',true);
  if(degree<2&&s.hp[i]>0){if(a.push)drownedPush(s,e,i,a.push,degree===0?2:1,mark.origin);if(a.grasp&&(s.flooded||[]).includes(s.pos[i])&&!s.webbed[i]){s.webbed[i]={dc,source:'Drowned Grasp'};note(s,name(run.picks[i])+' immobilized by Drowned Grasp · Escape DC '+dc);onRestraint(s,i,e);bossLog(s,'grasp',{hero:i,dc})}}
  bossLog(s,'hero_hit',{kind:mark.kind,hero:i,hpLost:Math.max(0,old-s.hp[i])});
  }return true
