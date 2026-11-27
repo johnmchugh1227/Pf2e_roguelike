@@ -76,7 +76,7 @@ let run=loadRun();
 // Local, versioned human-playtest telemetry. Never sends data over the network.
 const journalKey='pf2e-crawl-history-v1',journalBuild='mastermind-telemetry-1',journalLimit=25,journalBudget=2000000;
 let journalMemory=[],journalWarning='',journalExportOpen=false;
-const metricKeys=['damage','reactionDamage','healing','damageTaken','knockouts','strikes','criticalHits','sneakHits','damagePrevented','redirected','recallAttempts','recallSuccesses','recallCriticals','hazardRecallAttempts','hazardIdentified','hazardsDisabled','maneuverSuccesses','taunts','potions','fontSpent','focusSpent','consumables'];
+const metricKeys=['damage','reactionDamage','healing','damageTaken','knockouts','strikes','criticalHits','sneakHits','damagePrevented','redirected','recallAttempts','recallSuccesses','recallCriticals','newLoreTypes','weakestSavesRevealed','restudies','liberationSteps','liberationEscapes','hazardRecallAttempts','hazardIdentified','hazardsDisabled','maneuverSuccesses','taunts','potions','fontSpent','focusSpent','consumables'];
 function metrics(s){return s.metrics??={heroes:run.picks.map(id=>({id,...Object.fromEntries(metricKeys.map(k=>[k,0]))})),unattributedDamage:0,partyHealing:0}}
 function countMetric(s,i,k,n=1){if(!Number.isFinite(n)||n<=0)return;const m=metrics(s).heroes[i];if(m&&Object.hasOwn(m,k))m[k]+=n}
 function journalNote(s,msg){
@@ -89,7 +89,7 @@ function journalNote(s,msg){
   if(/^Shield Block · prevented /.test(suffix))countMetric(s,i,'damagePrevented',amount(/prevented (\d+)/));
   if(/^(Retributive Strike|Liberating Step) · prevents /.test(suffix))countMetric(s,i,'damagePrevented',amount(/prevents (\d+)/));
   if(suffix.startsWith('Intercept Attack ·'))countMetric(s,i,'redirected',amount(/redirects (\d+)/));
-  if(/^Taunt\b/.test(suffix))countMetric(s,i,'taunts');
+  if(/^taunts\b/i.test(suffix))countMetric(s,i,'taunts');
  }
 }
 function journalRead(){try{const v=JSON.parse(localStorage.getItem(journalKey));if(Array.isArray(v))return v.filter(r=>r&&r.schema===1&&typeof r.id==='string')}catch{}return []}
@@ -97,7 +97,7 @@ function journalWrite(records){journalMemory=records.slice(-journalLimit);while(
 function journalEnsure(partial=false){
  if(!run.battle)return null;
  if(!run.journal){const nonce=Array.from(crypto.getRandomValues(new Uint32Array(4))).join('-');run.journal={id:Date.now()+'-'+nonce,build:journalBuild,startedAt:new Date().toISOString(),partial:!!partial,retries:0,rooms:[]}}
- return run.journal
+ if(run.journal.build!==journalBuild){run.journal.partial=true;run.journal.build=journalBuild}return run.journal
 }
 function journalSnapshot(s){
  const j=run.journal,m=metrics(s);
@@ -113,7 +113,7 @@ function journalRecord(){
  if(!s.enemies||!Array.isArray(s.hp))return;
  const dead=!s.hp.some(Boolean),clear=won(s);if(!dead&&!clear)return;
  kit(s);const snap=journalSnapshot(s),idx=j.rooms.findIndex(r=>r.room===snap.room&&r.attempt===snap.attempt);
- if(idx<0){snap.combatEndHP=snap.heroes.map(h=>h.hp);j.rooms.push(snap)}else{snap.combatEndHP=j.rooms[idx].combatEndHP;j.rooms[idx]=snap}
+ if(idx<0){snap.combatEndHP=snap.heroes.map(h=>h.hp);snap.combatLevel=snap.level;j.rooms.push(snap)}else{snap.combatEndHP=j.rooms[idx].combatEndHP;snap.combatLevel=j.rooms[idx].combatLevel??snap.level;j.rooms[idx]=snap}
  if(!dead&&!tenthRoom())return;
  const outcome=dead?'defeat':'floor_clear',id=j.id+':'+j.retries+':'+outcome,prev=journalMemory.find(r=>r.id===id);
  const entry={schema:1,id,runId:j.id,build:j.build,startedAt:j.startedAt,recordedAt:prev?.recordedAt||new Date().toISOString(),partial:j.partial,seed:run.seed,draftOffers:dealDraft(run.seed),environment:floors[run.floor][0],party:run.picks.slice(),outcome,room:run.room||1,retries:j.retries,cleanClear:outcome==='floor_clear'&&!j.retries&&!j.partial,roomsCleared:new Set(j.rooms.filter(r=>r.result==='clear').map(r=>r.room)).size,rooms:JSON.parse(JSON.stringify(j.rooms)),totals:journalTotals(j.rooms),lore:{...run.monsterLore}};
@@ -765,11 +765,11 @@ function applyPersistent(s,bag,label,type,die,flat=0,dice=1){const p={die,flat,d
  bag[type]=p;note(s,label+' gains persistent '+type+' '+persistentText(p));return true}
 function addPersistent(s,i,type,die,flat=0){return applyPersistent(s,s.persistent[i],name(run.picks[i]),type,die,flat)}
 function persistentImmune(e,type){return !!(e.persistentImmune?.includes(type)||((type==='bleed'||type==='poison')&&isUndead(e))||(type==='bleed'&&e.type==='ooze'))}
-function addEnemyPersistent(s,e,type,die,flat=0,dice=1){if(!e.hp)return false;if(persistentImmune(e,type)){note(s,e.name+' immune to persistent '+type);return false}
- return applyPersistent(s,e.persistent??={},e.name,type,die,flat,dice)}
+function addEnemyPersistent(s,e,type,die,flat=0,dice=1,source=-1){if(!e.hp)return false;if(persistentImmune(e,type)){note(s,e.name+' immune to persistent '+type);return false}
+ const applied=applyPersistent(s,e.persistent??={},e.name,type,die,flat,dice);if(applied)e.persistent[type].source=source;return applied}
 function tickPersistent(s,bag,label,alive,damage){for(const [type,p] of Object.entries(bag||{})){if(!alive())break;damage(type,persistentRoll(s,p));if(!alive())break;if(!bag[type])continue;const d=roll(s,20);note(s,label+' persistent '+type+' recovery · '+d+' vs '+(p.dc??15));if(d>=(p.dc??15)){delete bag[type];note(s,label+' persistent '+type+' ends')}}}
 function endEnemyPersistent(s,e){if(!e.hp||!Object.keys(e.persistent||{}).length)return;const selected=s.target,idx=s.enemies.indexOf(e);if(idx<0)return;s.target=idx;
- tickPersistent(s,e.persistent,e.name,()=>e.hp>0,(type,n)=>{if(persistentImmune(e,type)){delete e.persistent[type];return}note(s,e.name+' takes persistent '+type+' · '+n+' before resistance/weakness');damageEnemy(s,n,type,false,false)});
+ tickPersistent(s,e.persistent,e.name,()=>e.hp>0,(type,n)=>{if(persistentImmune(e,type)){delete e.persistent[type];return}note(s,e.name+' takes persistent '+type+' · '+n+' before resistance/weakness');damageEnemy(s,n,type,false,false,e.persistent[type]?.source??-1)});
  s.target=selected;retarget(s)}
 function persistentSummary(e){return Object.entries(e.persistent||{}).map(([type,p])=>' · Persistent '+type+' '+persistentText(p)).join('')}
 
@@ -871,7 +871,7 @@ function targetAC(s,i){const e=target(s),cover=coverAt(s.pos[i],i,true),greater=
 function weaponFlatBonus(s,i,e,reaction=false){const w=weaponFor(i);return (reaction?(w.react||0):0)+(e.hp<=e.max/2?(w.wounded||0):0)+(w.flanked&&flank(s,i)?w.flanked:0)}
 function weaponRider(s,i,e,degree){const w=weaponFor(i);if(!e.hp||degree<2)return 0;let dealt=0;
  if(w.rider&&!(w.vs==='undead'&&!isUndead(e))){const n=w.amount*(degree===3&&!e.critImmune?2:1);note(s,w.name+' · '+n+' '+w.rider+' damage');dealt=damageEnemy(s,n,w.rider,false,false,i)}
- const p=w.persistentHit;if(e.hp&&p&&(!p.critOnly||degree===3)){const dice=!p.critOnly&&degree===3&&!e.critImmune?2:1;addEnemyPersistent(s,e,p.type,p.die,0,dice)}
+ const p=w.persistentHit;if(e.hp&&p&&(!p.critOnly||degree===3)){const dice=!p.critOnly&&degree===3&&!e.critImmune?2:1;addEnemyPersistent(s,e,p.type,p.die,0,dice,i)}
  return dealt}
 function bombImpact(s,i,e){return footprint(e).filter(p=>dist(s.pos[i],p)<=4&&clear(s.pos[i],p)).sort((p,q)=>dist(s.pos[i],p)-dist(s.pos[i],q)||p-q)[0]}
 function bombCells(s,i,e){const p=bombImpact(s,i,e);if(p===undefined)return [];return areaCells(p,p,{shape:'emanation',radius:1})}
@@ -879,7 +879,7 @@ function splashTargets(s,i,e){const cells=new Set(bombCells(s,i,e)),ts=[];for(le
 function throwBomb(s,i,key){const m=lootItems[key],b=m.bomb,e=target(s),original=s.target,ts=splashTargets(s,i,e),mod=level()+2+attrValue(i,1)-(s.prone[i]?2:0)-penalty(s.attacks++);
  const n=strikeRoll(s,name(run.picks[i])+' throws '+m.name+' → '+e.name,mod,targetAC(s,i),b.die,0),degree=s.lastDegree;
  if(degree>0){const splash=b.splash||0;note(s,m.name+' · '+splash+' splash '+b.type+' (including allies; no save)');
- for(const t of ts){if(t.side==='hero'){if(s.hp[t.i]>0)directDamage(s,t.i,splash,b.type)}else{s.target=t.i;const victim=s.enemies[t.i];if(victim.hp>0){damageEnemy(s,splash+(t.i===original?n:0),b.type,true,false,i);if(t.i===original&&degree>=2&&victim.hp)addEnemyPersistent(s,victim,b.type,b.persistentDie,0,degree===3&&!victim.critImmune?2:1)}}}}
+ for(const t of ts){if(t.side==='hero'){if(s.hp[t.i]>0)directDamage(s,t.i,splash,b.type)}else{s.target=t.i;const victim=s.enemies[t.i];if(victim.hp>0){damageEnemy(s,splash+(t.i===original?n:0),b.type,true,false,i);if(t.i===original&&degree>=2&&victim.hp)addEnemyPersistent(s,victim,b.type,b.persistentDie,0,degree===3&&!victim.critImmune?2:1,i)}}}}
  s.target=original;retarget(s);run.supplies[key]--;countMetric(s,i,'consumables');payAction();return true}
 function areaSupplyDC(i){return 10+level()+2+Math.max(attrValue(i,3),attrValue(i,4),attrValue(i,5))}
 function areaPlan(s){const p=s.areaPlan;if(!p||p.actor!==s.active||!supplyUsable(s,p.actor,p.key,true))return null;if(lootItems[p.key].bomb&&p.target!==s.target)return null;return p}
@@ -905,8 +905,8 @@ function escapeModifier(i){return Math.max(skillMod(i,'grapple')-charmBonus(i,'a
 function liberationEscape(s,t,e){const g=s.grabbed[t],w=s.webbed[t],stiff=s.stiff[t];if(!g&&!w&&!stiff)return false;const kind=g?'Grab':w?'web':'partial paralysis',dc=g?.dc??w?.dc??(s.paralysisDC[t]||Math.max(13,10+e.attack-2)),mod=g||w?escapeModifier(t):fortitudeMod(t),d=roll(s,20),deg=outcome(d,mod,dc);
  note(s,'Liberating Step · '+name(run.picks[t])+' free '+(g||w?'Escape':'Fortitude save')+' against '+kind+' · '+(d+mod)+' vs DC '+dc+' · '+['critical failure','failure','success','critical success'][deg]);
  if(deg>=2){if(g)releaseHeroGrab(s,t,'freed by Liberation');else if(w)s.webbed[t]=null;else{s.stiff[t]=0;s.paralysisDC[t]=0}return true}return false}
-function liberatingStep(s,i,t,e){liberationEscape(s,t,e);const from=s.pos[t],ignore=hasFeat(i,'Unimpeded Step'),steps=reactionSteps(s,t,ignore).filter(p=>enemyDistance(e,p)>enemyDistance(e,from)).sort((a,b)=>enemyDistance(e,b)-enemyDistance(e,a)||(hazardAt(s,a)?.kind==='rune'?1:0)-(hazardAt(s,b)?.kind==='rune'?1:0)||a-b);
- if(steps.length)reactionStep(s,t,steps[0],'Steps away with Liberation'+(ignore?' (Unimpeded Step)':''))}
+function liberatingStep(s,i,t,e){if(liberationEscape(s,t,e))countMetric(s,i,'liberationEscapes');const from=s.pos[t],ignore=hasFeat(i,'Unimpeded Step'),steps=reactionSteps(s,t,ignore).filter(p=>enemyDistance(e,p)>enemyDistance(e,from)).sort((a,b)=>enemyDistance(e,b)-enemyDistance(e,a)||(hazardAt(s,a)?.kind==='rune'?1:0)-(hazardAt(s,b)?.kind==='rune'?1:0)||a-b);
+ if(steps.length){countMetric(s,i,'liberationSteps');reactionStep(s,t,steps[0],'Steps away with Liberation'+(ignore?' (Unimpeded Step)':''))}}
 function onRestraint(s,t,e){if(!s.hp[t])return false;for(let i=0;i<3;i++)if(run.picks[i]==='liberation'&&championReady(s,i,t,e)){s.ready[i]=false;note(s,name(run.picks[i])+' Liberating Step · ally restrained');liberatingStep(s,i,t,e);return true}return false}
 function divineGrace(s,i,kind,origin,magical){if(!magical||!s.hp[i]||!s.ready[i]||run.graceEnabled?.[i]===false||!hasFeat(i,'Divine Grace'))return 0;
  const cover=kind==='reflex'&&sight(s.pos[i],i,origin).startsWith('Cover')?2:0;if(cover>=2)return 0;s.ready[i]=false;note(s,name(run.picks[i])+' Divine Grace · +2 circumstance '+kind+' save');return 2}
@@ -999,7 +999,7 @@ function castCantrip(s,k){if(!cantripEligible(s,k))return false;const a=divineCa
  if(a.attack){n=strikeRoll(s,name(run.picks[i])+' casts '+a.name+' → '+e.name,divineDC(i)-10-penalty(s.attacks++)-(s.prone[i]?2:0),targetAC(s,i),a.die,0,false,-1,false,dice);degree=s.lastDegree;consumeFeint(e,i)}
  else{const mod=saveModifier(s,{side:'enemy',i:s.target,pos:e.pos},a.save,s.pos[i]),d=roll(s,20);degree=outcome(d,mod,divineDC(i));let rolled=0;for(let j=0;j<dice;j++)rolled+=roll(s,a.die);n=basicDamage(rolled,degree);note(s,a.name+' → '+e.name+' · '+a.save+' '+(d+mod)+' vs DC '+divineDC(i)+' · '+['critical failure','failure','success','critical success'][degree]+' · '+n+' '+a.type+' damage')}
  damageEnemy(s,n,a.type,false,false,i);
- if(e.hp>0&&k==='needles'&&degree===3)addEnemyPersistent(s,e,'bleed',1,rank,0);
+ if(e.hp>0&&k==='needles'&&degree===3)addEnemyPersistent(s,e,'bleed',1,rank,0,i);
  if(e.hp>0&&k==='daze'&&degree===0){e.stunned=Math.max(e.stunned||0,1);note(s,e.name+' · Stunned 1 (loses an action next turn)')}
  s.actions--;payAction();return true}
 // Focus is a persistent per-hero pool, separate from font, spells and party consumables.
@@ -1087,7 +1087,7 @@ function weakestSaves(e){const pairs=[['Fortitude',e.fort],['Reflex',e.reflex??M
 function recallMonster(s){const e=target(s),i=s.active;if(!canRecallMonster(s,e))return false;const {skill,mod}=monsterRecallSkill(i,e),mm=run.picks[i]==='mastermind',repeat=!!e.recallTried?.[i],dc=monsterRecallDC(e)+(mm&&repeat?2:0),d=roll(s,20),deg=outcome(d,mod,dc);
  if(mm){e.mastermindStudy??=[null,null,null];e.mastermindStudy[i]={success:deg>=2,turn:s.heroTurns[i]}}
  e.recallTried??=[false,false,false];e.recallTried[i]=true;note(s,name(run.picks[i])+' Recall Knowledge · '+e.name+' · '+skill+' '+(d+mod)+' vs DC '+dc+' · '+['critical failure','failure','success','critical success'][deg]);
- if(deg>=2){run.monsterLore??={};run.monsterLore[loreKey(e)]=Math.max(loreRank(e),deg===3||mm?2:1);note(s,'Shared knowledge · '+(monsterTypes[e.type]?.info||'Combatant identified')+' · '+monsterTraits(e));if(deg===3||mm)note(s,(deg===3?'Critical insight':'Mastermind analysis')+' · weakest save: '+weakestSaves(e));if(run.picks[i]==='mastermind'){e.known[i]=Math.max(e.known[i]||0,deg===3?10:1);note(s,'Mastermind · '+e.name+' off-guard to you '+(deg===3?'for up to 10 turns':'until your next turn'))}}
+ if(repeat)countMetric(s,i,'restudies');if(deg>=2){const prior=loreRank(e);if(!prior)countMetric(s,i,'newLoreTypes');if(prior<2&&(deg===3||mm))countMetric(s,i,'weakestSavesRevealed');run.monsterLore??={};run.monsterLore[loreKey(e)]=Math.max(prior,deg===3||mm?2:1);note(s,'Shared knowledge · '+(monsterTypes[e.type]?.info||'Combatant identified')+' · '+monsterTraits(e));if(deg===3||mm)note(s,(deg===3?'Critical insight':'Mastermind analysis')+' · weakest save: '+weakestSaves(e));if(run.picks[i]==='mastermind'){e.known[i]=Math.max(e.known[i]||0,deg===3?10:1);note(s,'Mastermind · '+e.name+' off-guard to you '+(deg===3?'for up to 10 turns':'until your next turn'))}}
  else note(s,'No reliable information. Another hero may investigate.');
  payAction();return true}
 // Read-only tactical advice; never reveals unidentified defenses or grants numerical bonuses.
