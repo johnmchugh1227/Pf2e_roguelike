@@ -1,6 +1,6 @@
 # Alpha 0.1 roadmap and task queue
 
-The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **Active review: ROAD-1. Next assignment: ART-1. Next gameplay milestone: BOSS-3.**
+The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **Active review: ART-1. Next assignment and gameplay milestone: BOSS-3.**
 
 ## Release goals
 
@@ -17,8 +17,8 @@ The repository is the project record. This queue sets order and ownership. The [
 | ID | Owner | State | Deliverable and acceptance |
 | --- | --- | --- | --- |
 | WF-1 | Lead | Approved and merged | Five specialists, two-child cap, lead-only delegation and handoff conventions. [Setup PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/2) |
-| 1 · ROAD-1 | Lead | In review | Reconcile the migrated claims against merged main, record focused test results and leave the next assignment reproducible. |
-| 2 · ART-1 | Art and Asset Designer → lead | Ready | Reproduce the Watchfort hobgoblin sprite gap. Check both embedded dictionaries, aliases and available source art for a suitable match. If genuinely missing, generate one small asset, hand the PNG and integration details to the lead, then verify the integrated sprite in game and on a phone-sized board. Record generation, transfer and integration separately. |
+| 1 · ROAD-1 | Lead | Merged | Reconciled the roadmap with the implemented game. [Roadmap PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/3) |
+| 2 · ART-1 | Art and Asset Designer → lead | In review | Shared Watchfort hobgoblin sprite integrated and checked on desktop and phone-sized boards. [Review PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4) |
 | 3 · BOSS-3 | Game Developer | Queued | Review the existing Warlord arena, sweep, reaction, artwork and unused war standard. Propose distinct Watchfort counterplay using its terrain. Obtain owner input on the major encounter design, then implement, test and playtest. |
 | 4 · BAL-1 | Balance Analyst | Queued | Validate both Wardens and the finished Warlord, encounter pressure and resource attrition across varied parties. Report paired seeded evidence and human observations separately. Seek owner approval before adopting a first-floor target. |
 | 5 · ENC-1 | Game Developer | Queued | Identify repeated or unstable encounters from seeds and journals, prioritize observed problems, and verify fixes against reproductions. |
@@ -32,6 +32,13 @@ The repository is the project record. This queue sets order and ownership. The [
 
 **ROAD-1 · Lead → reviewer.** Baseline `f6fe856` on merged main. Compared the game, embedded art, tests and commit history with the owner’s Alpha notes. Ran all 15 focused regressions from the root with `node tests/<name>.cjs`: alpha-environments, alpha-ui, boss, combat-feedback, drowned-warden, fundamentals, hide, mastermind, quick-draw, resources, sprites, telemetry, trinkets-tactics, weapon-comparison and weapon-transfer. All passed. The four balance harnesses were inspected as simulation infrastructure. No new human sessions, balance benchmark or artwork trial were conducted for this migration.
 
-**Next handoff · ART-1.** At seed 34, Watchfort (floor index 2), room 6, the archer and soldier both resolve to `hobgoblin`. `spriteImage` returns an empty string. Reproduce using `enemySpecs`, `spriteKey` and `spriteImage`; compare both variants with existing source art. If reuse resolves this gap, record that outcome and choose another verified missing asset for the generation trial. Deliver a source PNG, proposed key and visual reference. The lead owns integration in `index.html` and records a rendered board check plus sprite regression. The earlier child-tool probe established tool visibility only.
+**ART-1 · Art and Asset Designer → lead → reviewer.** Seed 34, Ruined Watchfort room 6, reproduced the glyph-only archer at H2 and soldier at E3.
+
+- **Generation.** The specialist checked 34 base sprites, 41 supplemental assets, the aliases and tracked source art. The human archer and shieldbearer depict specific equipment, and the Iron Warlord has a dedicated boss silhouette. One ImageGen call produced a weapon-neutral hobgoblin with helmet, long ears and an oxblood surcoat.
+- **Transfer.** The specialist sized the artwork to the shieldbearer’s 48×48 footprint and handed off [the transparent PNG](../assets/hobgoblin.png) under the existing hobgoblin key.
+- **Integration.** The lead embedded the PNG in the base sprite dictionary. The sprite regression compares the image in each target cell against the source and checks the A/B tokens. It passed for seed 34 and the 12 opening boards. The alpha-environments and alpha-ui checks passed with 505 and 121 assertions.
+- **Rendered check.** In Chrome at 1280×900, both sprites occupied about 61 px inside 68 px cells. At a 390×844 emulated phone viewport, each occupied about 34 px inside a 39 px cell. Both screenshots showed the A/B badges, the selected archer’s outline and separate target names. Physical-device play remains scheduled under QA-1.
+
+**Next action.** Owner reviews [ART-1](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4). BOSS-3 starts with a Watchfort counterplay proposal for owner input.
 
 Before a context limit approaches, warn the owner and update the active row with branch/commit, scope, evidence, unresolved decisions and the exact next action. A fresh chat starts here. Follow [repository delegation rules](../AGENTS.md): one writer per file, up to two specialists, no nested delegation. Escalate major design choices, permissions and unresolved blockers.
