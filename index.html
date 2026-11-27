@@ -73,7 +73,63 @@ function fresh(seed){return {seed,picks:[],floor:null}}
 function randomSeed(){return crypto.getRandomValues(new Uint32Array(1))[0]}
 function loadRun(){try{const s=JSON.parse(localStorage.getItem(key));const hands=dealDraft(s.seed);if(Array.isArray(s.picks)&&s.picks.length<=3&&s.picks.every((id,i)=>hands[i].includes(id))&&(s.floor===null||(s.picks.length===3&&Number.isInteger(s.floor)&&floors[s.floor])))return s}catch{}return fresh(randomSeed())}
 let run=loadRun();
-function persist(){try{localStorage.setItem(key,JSON.stringify(run))}catch{}}
+// Local, versioned human-playtest telemetry. Never sends data over the network.
+const journalKey='pf2e-crawl-history-v1',journalBuild='mastermind-telemetry-1',journalLimit=25,journalBudget=2000000;
+let journalMemory=[],journalWarning='',journalExportOpen=false;
+const metricKeys=['damage','reactionDamage','healing','damageTaken','knockouts','strikes','criticalHits','sneakHits','damagePrevented','redirected','recallAttempts','recallSuccesses','recallCriticals','hazardRecallAttempts','hazardIdentified','hazardsDisabled','maneuverSuccesses','taunts','potions','fontSpent','focusSpent','consumables'];
+function metrics(s){return s.metrics??={heroes:run.picks.map(id=>({id,...Object.fromEntries(metricKeys.map(k=>[k,0]))})),unattributedDamage:0,partyHealing:0}}
+function countMetric(s,i,k,n=1){if(!Number.isFinite(n)||n<=0)return;const m=metrics(s).heroes[i];if(m&&Object.hasOwn(m,k))m[k]+=n}
+function journalNote(s,msg){
+ const i=run.picks.findIndex(id=>msg.startsWith(name(id)+' ')),suffix=i>=0?msg.slice(name(run.picks[i]).length+1):msg;
+ const amount=r=>Number(suffix.match(r)?.[1]||0),success=/ · (?:critical success|success)(?: ·|$)/.test(suffix);
+ if(i>=0){
+  if(suffix.startsWith('Recall Knowledge ·')&&!/ · (Hazard Lore|crafting) /.test(suffix)&&!['Suspicious stone tile','Unfamiliar floor markings','Glowing stone altar'].some(x=>suffix.startsWith('Recall Knowledge · '+x+' ·'))){countMetric(s,i,'recallAttempts');if(success)countMetric(s,i,'recallSuccesses');if(/ · critical success$/.test(suffix))countMetric(s,i,'recallCriticals')}
+  if(suffix.startsWith('Disable ')&&success)countMetric(s,i,'hazardsDisabled');
+  if(/^(trip|grapple|disarm|demoralize|feint|shove|reposition) →/.test(suffix)&&success)countMetric(s,i,'maneuverSuccesses');
+  if(/^Shield Block · prevented /.test(suffix))countMetric(s,i,'damagePrevented',amount(/prevented (\d+)/));
+  if(/^(Retributive Strike|Liberating Step) · prevents /.test(suffix))countMetric(s,i,'damagePrevented',amount(/prevents (\d+)/));
+  if(suffix.startsWith('Intercept Attack ·'))countMetric(s,i,'redirected',amount(/redirects (\d+)/));
+  if(/^Taunt\b/.test(suffix))countMetric(s,i,'taunts');
+ }
+}
+function journalRead(){try{const v=JSON.parse(localStorage.getItem(journalKey));if(Array.isArray(v))return v.filter(r=>r&&r.schema===1&&typeof r.id==='string')}catch{}return []}
+function journalWrite(records){journalMemory=records.slice(-journalLimit);while(journalMemory.length>1&&JSON.stringify(journalMemory).length>journalBudget)journalMemory.shift();try{localStorage.setItem(journalKey,JSON.stringify(journalMemory));journalWarning='';return true}catch{journalWarning='Device storage is unavailable or full. Export this report before closing the game.';return false}}
+function journalEnsure(partial=false){
+ if(!run.battle)return null;
+ if(!run.journal){const nonce=Array.from(crypto.getRandomValues(new Uint32Array(4))).join('-');run.journal={id:Date.now()+'-'+nonce,build:journalBuild,startedAt:new Date().toISOString(),partial:!!partial,retries:0,rooms:[]}}
+ return run.journal
+}
+function journalSnapshot(s){
+ const j=run.journal,m=metrics(s);
+ return {room:run.room||1,attempt:j.retries,level:level(),result:s.hp.some(Boolean)?'clear':'defeat',rounds:s.round,encounter:layout().title,encounterBudget:s.encounter??null,
+ enemies:s.enemies.map(e=>({type:e.type||e.name,name:e.name,hp:e.hp,maxHP:e.max,level:e.creatureLevel??null,summoned:!!e.summoned})),
+ heroes:run.picks.map((id,i)=>({id,name:name(id),hp:s.hp[i],maxHP:heroMax(s,i),font:s.font?.[i]??null,focus:s.focus?.[i]??null,feats:allFeats(i).filter(Boolean),generalFeat:generalFeat(i)||null,weapon:weaponFor(i).name,gear:{...gear(i),weapons:[...gear(i).weapons],charms:[...gear(i).charms]},metrics:{...m.heroes[i]}})),
+ unattributedDamage:m.unattributedDamage,partyHealing:m.partyHealing,potionsRemaining:s.potions??0,supplies:{...run.supplies},loot:s.lootTaken??null,lootOffers:s.lootOffers??null,recovery:s.recovery?JSON.parse(JSON.stringify(s.recovery)):null,
+ hazards:(s.hazards||[]).map(z=>({kind:z.kind,identified:hazardKnown(z),disabled:!!z.disabled,destroyed:!!z.destroyed,active:!!z.active})),log:s.log.slice().reverse()}
+}
+function journalTotals(rooms){const heroes=run.picks.map(id=>({id,...Object.fromEntries(metricKeys.map(k=>[k,0]))}));for(const r of rooms)r.heroes.forEach((h,i)=>{for(const k of metricKeys)heroes[i][k]+=h.metrics[k]||0});return {heroes,rounds:rooms.reduce((a,r)=>a+r.rounds,0),unattributedDamage:rooms.reduce((a,r)=>a+r.unattributedDamage,0),partyHealing:rooms.reduce((a,r)=>a+r.partyHealing,0)}}
+function journalRecord(){
+ const s=run.battle;if(!s)return;const j=journalEnsure(true);
+ if(!s.enemies||!Array.isArray(s.hp))return;
+ const dead=!s.hp.some(Boolean),clear=won(s);if(!dead&&!clear)return;
+ kit(s);const snap=journalSnapshot(s),idx=j.rooms.findIndex(r=>r.room===snap.room&&r.attempt===snap.attempt);
+ if(idx<0){snap.combatEndHP=snap.heroes.map(h=>h.hp);j.rooms.push(snap)}else{snap.combatEndHP=j.rooms[idx].combatEndHP;j.rooms[idx]=snap}
+ if(!dead&&!tenthRoom())return;
+ const outcome=dead?'defeat':'floor_clear',id=j.id+':'+j.retries+':'+outcome,prev=journalMemory.find(r=>r.id===id);
+ const entry={schema:1,id,runId:j.id,build:j.build,startedAt:j.startedAt,recordedAt:prev?.recordedAt||new Date().toISOString(),partial:j.partial,seed:run.seed,draftOffers:dealDraft(run.seed),environment:floors[run.floor][0],party:run.picks.slice(),outcome,room:run.room||1,retries:j.retries,cleanClear:outcome==='floor_clear'&&!j.retries&&!j.partial,roomsCleared:new Set(j.rooms.filter(r=>r.result==='clear').map(r=>r.room)).size,rooms:JSON.parse(JSON.stringify(j.rooms)),totals:journalTotals(j.rooms),lore:{...run.monsterLore}};
+ const records=journalMemory.filter(r=>r.id!==id);records.push(entry);journalWrite(records);
+}
+function journalPanel(){
+ const n=journalMemory.length,latest=journalMemory.at(-1),current=latest&&run.journal?.id===latest.runId;
+ const summary=current?'<h3>Expedition report</h3><p>'+latest.roomsCleared+'/10 rooms cleared · '+latest.totals.rounds+' rounds · '+latest.retries+' retries'+(latest.partial?' · partial history':'')+'</p><div style="overflow:auto"><table style="width:100%;text-align:left"><thead><tr><th>Hero</th><th>Damage</th><th>Heal</th><th>Prevent</th><th>Downs</th></tr></thead><tbody>'+latest.totals.heroes.map(h=>'<tr><td>'+name(h.id)+'</td><td>'+h.damage+'</td><td>'+h.healing+'</td><td>'+h.damagePrevented+'</td><td>'+h.knockouts+'</td></tr>').join('')+'</tbody></table></div><p class="legend">Damage is actual enemy HP removed, including reactions. Unattributed sources: '+latest.totals.unattributedDamage+'. Recovery not credited to a hero: '+latest.totals.partyHealing+' HP. Full utility metrics and room logs in export.</p>':'';
+ return '<section class="hazard-panel">'+summary+'<details '+(current||journalExportOpen?'open':'')+'><summary>Playtest history · '+n+' saved result'+(n===1?'':'s')+'</summary><p class="legend">Saved on this device only. Up to '+journalLimit+' recent results, subject to storage size. Defeats and later clears are linked by run ID. Export regularly.</p>'+ (n?'<ul>'+journalMemory.slice().reverse().map(r=>'<li>'+r.environment+' · '+(r.outcome==='floor_clear'?'Clear':'Defeat in room '+r.room)+' · '+r.retries+' retries'+(r.partial?' · partial':'')+'</li>').join('')+'</ul>':'<p>No finished runs yet.</p>')+
+ (journalWarning?'<p>'+journalWarning+'</p>':'')+
+ '<button data-historyexport="1" '+(!n?'disabled':'')+'>Export playtest JSON</button>'+
+ (journalExportOpen&&n?'<p class="legend">Download the JSON or select and copy the text below.</p><textarea id="history-json" readonly rows="6" style="width:100%"></textarea>':'')+'</details></section>'
+}
+function journalShowExport(){journalExportOpen=true;render();const el=document.getElementById('history-json');if(el){const data=JSON.stringify({schema:1,records:journalMemory},null,2);el.value=data;try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download='pf2e-playtest-history.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}catch{}el.focus();el.select()}}
+
+function persist(){journalRecord();try{localStorage.setItem(key,JSON.stringify(run))}catch{journalWarning="Active save could not be written. Export any finished reports."}}
 function name(id){return heroes[id][0].split(" · ")[0]}
 function heroCard(id){const [gear,feature,turn,next]=heroes[id];return '<article class="card"><h3>'+name(id)+'</h3><p>'+gear.split(" · ")[1]+'</p><p><b>'+feature+'</b></p><details><summary>Inspect hero</summary><p>'+turn+'</p>'+(triggers[id]?'<p>'+triggers[id]+'</p>':'')+'<p>'+next+'</p></details><footer><button data-pick="'+id+'">Recruit '+name(id)+'</button></footer></article>'}
 const rooms=[
@@ -228,7 +284,7 @@ function advancementPanel(){const a=run.advancement,i=a.hero,id=run.picks[i],p=p
  h+='</div><div class="actions"><button data-allfeats="1">'+(a.all?'Show suggested feats':'Browse all available feats ('+pool.length+')')+'</button><button data-finishadv="1" '+(a.choices.some(f=>f===null)?'disabled':'')+'>Confirm party advancement</button></div>';return h}
 function roll(s,faces){s.rng=(Math.imul(s.rng,1664525)+1013904223)>>>0;return 1+Math.floor(s.rng/4294967296*faces)}
 function enemySquare(){return target().pos}
-function note(s,msg){s.log.unshift(msg)}
+function note(s,msg){s.log.unshift(msg);journalNote(s,msg)}
 function baseEnemySpecs(){const map=layout().rows.join('');return tenthRoom()?[{name:['Sepulcher Warden','Drowned Warden','Iron Warlord'][run.floor],pos:map.indexOf('A'),max:100,ac:24,attack:15,init:12,fort:13,guard:true,boss:true}]:ninthRoom()?[{name:'Elite archer',pos:map.indexOf('A'),max:30,ac:21,attack:12,init:10,fort:9,guard:false},{name:'Vanguard',pos:map.indexOf('B'),max:38,ac:22,attack:13,init:9,fort:11,guard:true},{name:'Retainer',pos:map.indexOf('C'),max:26,ac:20,attack:11,init:8,fort:8,guard:false}]:eighthRoom()?[{name:'Reliquary defender',pos:map.indexOf('A'),max:37,ac:21,attack:12,init:9,fort:10,guard:true},{name:'Sentinel',pos:map.indexOf('B'),max:33,ac:20,attack:11,init:8,fort:10,guard:true}]:seventhRoom()?[{name:'Elite skirmisher',pos:map.indexOf('A'),max:32,ac:20,attack:11,init:9,fort:9,guard:false},{name:'Iron guard',pos:map.indexOf('B'),max:36,ac:21,attack:12,init:8,fort:10,guard:true}]:sixthRoom()?
  [{name:'Lookout archer',pos:map.indexOf('A'),max:22,ac:17,attack:8,init:7,fort:6,guard:false},{name:'Barricade guard',pos:map.indexOf('B'),max:28,ac:18,attack:9,init:6,fort:8,guard:true}]:
  [{name:baseFoeName(),pos:map.indexOf('A'),max:foeMax(),ac:foeAC(),attack:fifthRoom()?10:fourthRoom()?9:thirdRoom()?8:6,init:fifthRoom()?9:fourthRoom()?8:6,fort:fifthRoom()?9:fourthRoom()?7:thirdRoom()?7:5,guard:guardFight()}]}
@@ -541,13 +597,13 @@ function supplyUsable(s,i,key,combat){if(!Number.isInteger(i)||i<0||i>=3||!s.hp[
  if(key==='salve')return !!s.persistent[i].bleed;if(key==='salts')return !!s.stiff[i];if(key==='restoration')return s.drained[i]>0;return false}
 function useSupply(s,i,key,combat){ensureLoot();if(!supplyUsable(s,i,key,combat))return false;
  if(lootItems[key].bomb||lootItems[key].area)return startArea(s,i,key);
- let detail='';if(key==='lesser'||key==='elixir'){const n=Math.min(heroMax(s,i)-s.hp[i],key==='lesser'?roll(s,8)+roll(s,8)+5:roll(s,6)+2);s.hp[i]+=n;detail=n+' HP restored'}
+ let detail='';if(key==='lesser'||key==='elixir'){const n=Math.min(heroMax(s,i)-s.hp[i],key==='lesser'?roll(s,8)+roll(s,8)+5:roll(s,6)+2);s.hp[i]+=n;metrics(s).partyHealing+=n;detail=n+' HP restored'}
  else if(key==='antidote'){s.antidote[i]=true;detail='+2 to poison saves this encounter'}
  else if(key==='haste'||key==='warding'){s.tonics[i][key]=true;detail=key==='haste'?'+5 ft Speed this encounter':'resistance 3 fire and void this encounter'}
  else if(key==='salve'){delete s.persistent[i].bleed;detail='persistent bleed ends'}
  else if(key==='salts'){s.stiff[i]=0;detail='partial paralysis ends'}
  else if(key==='restoration'){s.drained[i]--;detail='Drained reduced to '+s.drained[i]}
- note(s,name(run.picks[i])+' uses '+lootItems[key].name+' · '+detail);run.supplies[key]--;if(combat)payAction();return true}
+ note(s,name(run.picks[i])+' uses '+lootItems[key].name+' · '+detail);run.supplies[key]--;countMetric(s,i,'consumables');if(combat)payAction();return true}
 function supplyButtons(s,i,combat){return Object.keys(run.supplies||{}).filter(k=>supplyUsable(s,i,k,combat)).map(k=>'<button data-supply="'+k+'" data-recipient="'+i+'">'+lootItems[k].name+(lootItems[k].bomb?' → '+target(s).name:'')+' ('+run.supplies[k]+' left)'+(combat?(lootItems[k].area?' · 2 actions · aim':' · 1 action'+(lootItems[k].bomb?' · aim':'')):'')+'</button>').join('')}
 function lootPanel(s){const base=secondRoom()?2:1;return '<h3>Choose one reward</h3><p>Guaranteed: '+base+' minor healing potion'+(base===2?'s':'')+' and shield repair. Select one bonus reward.</p><div class="grid">'+lootChoices(s).map(key=>{const m=lootItems[key];return '<article class="card"><h3>'+m.name+'</h3><p>'+m.desc+'</p><footer>'+(m.kind==='supply'?'<button data-loot="'+key+'">Take supplies</button>':run.picks.map((id,i)=>lootEligible(key,i)?'<button data-loot="'+key+'" data-recipient="'+i+'">Equip '+name(id)+'</button>':'').join(''))+'</footer></article>'}).join('')+'</div><button data-claim="1">Take guaranteed supplies only</button>'}
 function equipmentPanel(s,combat=false){const indices=combat?[s.active]:[0,1,2],count=run.supplies||{},out=indices.map(i=>{const g=gear(i),w=weaponFor(i),nameOf=k=>lootItems[k].name;return '<div class="card"><b>'+name(run.picks[i])+'</b><p>'+w.name+' · '+weaponDice(i)+'d'+w.die+' '+w.type+(w.desc?' · '+w.desc:'')+(g.charm?' · '+nameOf(g.charm):'')+'</p>'+((g.weapons.length)?'<details><summary>'+ (combat?'Switch weapon · 1 action':'Equip weapon · free')+'</summary>'+[null,...g.weapons].map(k=>'<button data-equip="weapon" data-equipkey="'+(k||'starter')+'" data-recipient="'+i+'" '+(g.weapon===k?'disabled':'')+'>'+(k?nameOf(k):starterWeapons[run.picks[i]][0])+'</button>').join('')+'</details>':'')+(!combat&&g.charms.length?'<details><summary>Equip accessory · free</summary>'+[null,...g.charms].map(k=>'<button data-equip="charm" data-equipkey="'+(k||'starter')+'" data-recipient="'+i+'" '+(g.charm===k?'disabled':'')+'>'+(k?nameOf(k):'None')+'</button>').join('')+'</details>':'')+(combat?quickDrawPanel(s,i):'')+supplyButtons(s,i,combat)+'</div>'}).join('');
@@ -558,7 +614,7 @@ function target(s=run.battle){const es=initEnemies(s);return es[s.target]||es[0]
 function foeName(){return target().name}
 function won(s){return initEnemies(s).every(e=>e.hp===0)}
 function retarget(s){if(target(s).hp<=0){const i=initEnemies(s).findIndex(e=>e.hp>0);if(i>=0)s.target=i}}
-function damageEnemy(s,n,type=null,area=false,blockable=true){const e=target(s),before=e.hp;if(n>0&&e.dormant)awakenMimic(s,e);if(n>0&&blockable&&!area&&['piercing','slashing','bludgeoning'].includes(type)&&e.shieldRaised&&e.shieldHP>6&&e.reaction!==false){const reduced=Math.max(0,n-3);e.reaction=false;e.shieldHP=Math.max(0,e.shieldHP-reduced);note(s,e.name+' Shield Block · prevented '+Math.min(n,3)+' · shield '+e.shieldHP+'/12');n=reduced;if(e.shieldHP<=6){e.shieldRaised=false;note(s,e.name+' shield breaks')}}if(n>0&&type){const resist=e.resist?.[type]||0,weak=e.weak?.[type]||0;if(resist)note(s,e.name+' resists '+Math.min(n,resist)+' '+type+' damage');if(weak)note(s,e.name+' weakness · +'+weak+' '+type+' damage');n=Math.max(0,n-resist)+weak}if(n>0&&area&&e.areaWeak){n+=e.areaWeak;note(s,e.name+' area weakness · +'+e.areaWeak+' damage')}e.hp=Math.max(0,e.hp-n);if(before>0&&!e.hp){note(s,e.name+' defeated.');for(const i of heldByEnemy(s,e))releaseHeroGrab(s,i,'captor defeated')}return before-e.hp}
+function damageEnemy(s,n,type=null,area=false,blockable=true,source=-1,reaction=false){const e=target(s),before=e.hp;if(n>0&&e.dormant)awakenMimic(s,e);if(n>0&&blockable&&!area&&['piercing','slashing','bludgeoning'].includes(type)&&e.shieldRaised&&e.shieldHP>6&&e.reaction!==false){const reduced=Math.max(0,n-3);e.reaction=false;e.shieldHP=Math.max(0,e.shieldHP-reduced);note(s,e.name+' Shield Block · prevented '+Math.min(n,3)+' · shield '+e.shieldHP+'/12');n=reduced;if(e.shieldHP<=6){e.shieldRaised=false;note(s,e.name+' shield breaks')}}if(n>0&&type){const resist=e.resist?.[type]||0,weak=e.weak?.[type]||0;if(resist)note(s,e.name+' resists '+Math.min(n,resist)+' '+type+' damage');if(weak)note(s,e.name+' weakness · +'+weak+' '+type+' damage');n=Math.max(0,n-resist)+weak}if(n>0&&area&&e.areaWeak){n+=e.areaWeak;note(s,e.name+' area weakness · +'+e.areaWeak+' damage')}e.hp=Math.max(0,e.hp-n);if(before>0&&!e.hp){note(s,e.name+' defeated.');for(const i of heldByEnemy(s,e))releaseHeroGrab(s,i,'captor defeated')}const dealt=before-e.hp;if(source>=0&&source<3){countMetric(s,source,'damage',dealt);if(reaction)countMetric(s,source,'reactionDamage',dealt)}else metrics(s).unattributedDamage+=dealt;return dealt}
 function footprint(e,at=e.pos){const size=e.size||1,[x,y]=xy(at);if(!Number.isInteger(at)||at<0||at>=45||x+size>9||y+size>5)return [];const cells=[];for(let dy=0;dy<size;dy++)for(let dx=0;dx<size;dx++)cells.push((y+dy)*9+x+dx);return cells}
 function enemyDistance(e,p,at=e.pos){return Math.min(...footprint(e,at).map(q=>dist(q,p)))}
 function enemyLOS(e,p,at=e.pos){return footprint(e,at).some(q=>clear(q,p))}
@@ -603,7 +659,7 @@ function hazardClue(z){return {bones:'Bone pile',plate:'Suspicious stone tile',r
 function hazardDisplay(z){return hazardKnown(z)?hazardLabel(z):hazardClue(z)}
 function recallHazardSkill(i,z){const id=run.picks[i],mechanical=z.kind==='plate',skill=mechanical?'crafting':'religion';if(id==='mastermind')return mastermindLore(i,'Hazard Lore');const trained=mechanical?['thief','mastermind'].includes(id):['healing','harmful','justice','liberation'].includes(id);return {skill,mod:attrValue(i,mechanical?3:4)+(trained?level()+2:0)+charmBonus(i,skill)}}
 function canRecallHazard(s,z){const i=s.active;return !!(z?.active&&!hazardKnown(z)&&i>=0&&i<3&&s.hp[i]>0&&s.actions>=1&&!z.recallTried?.[i]&&dist(s.pos[i],z.pos)<=6&&clear(s.pos[i],z.pos))}
-function recallHazard(s,j){const z=s.hazards[j],i=s.active;if(!canRecallHazard(s,z))return false;const {mod,skill}=recallHazardSkill(i,z),d=roll(s,20),degree=outcome(d,mod,z.dc);z.recallTried??=[false,false,false];z.recallTried[i]=true;
+function recallHazard(s,j){const z=s.hazards[j],i=s.active;if(!canRecallHazard(s,z))return false;const {mod,skill}=recallHazardSkill(i,z),d=roll(s,20),degree=outcome(d,mod,z.dc);z.recallTried??=[false,false,false];z.recallTried[i]=true;countMetric(s,i,'hazardRecallAttempts');if(degree>=2)countMetric(s,i,'hazardIdentified');
  note(s,name(run.picks[i])+' Recall Knowledge · '+hazardClue(z)+' · '+skill+' '+(d+mod)+' vs DC '+z.dc+' · '+['critical failure','failure','success','critical success'][degree]);
  if(degree>=2){z.identified=true;note(s,'Identified '+hazardLabel(z)+' · '+hazardTypes[z.kind].info);if(degree===3){z.insight=true;note(s,'Critical success · party gains +2 circumstance bonus to disable this hazard.')}}else note(s,'No reliable information. Another hero may investigate.');
  payAction();return true}
@@ -693,7 +749,7 @@ function ghoulParalysis(s,i,e){const dc=10+e.attack-2,d=roll(s,20),mod=fortitude
 function drainLife(s,i,e){if(!e.hp||!s.hp[i])return;const heal=Math.min(2,e.max-e.hp);e.hp+=heal;if(heal)note(s,e.name+' Drain Life restores '+heal+' HP');
  const dc=10+e.attack-2,d=roll(s,20),mod=fortitudeMod(i),degree=outcome(d,mod,dc);note(s,name(run.picks[i])+' Drain Life save · '+(d+mod)+' vs DC '+dc);if(degree>=2||s.drained[i]>=2)return;
  const increase=Math.min(2-s.drained[i],degree===0?2:1);s.drained[i]+=increase;s.hp[i]=Math.max(0,Math.min(heroMax(s,i),s.hp[i]-level()*increase));note(s,name(run.picks[i])+' Drained '+s.drained[i]+' · max HP '+heroMax(s,i));if(!s.hp[i])note(s,name(run.picks[i])+' is down.')}
-function directDamage(s,i,n,type){const before=s.hp[i],baseType=type.replace(/^persistent /,'').startsWith('poison')?'poison':type.replace(/^persistent /,'');const resist=Math.max(charmBonus(i,baseType),s.tonics?.[i]?.warding&&['fire','void'].includes(baseType)?3:0);if(resist&&n>0){note(s,name(run.picks[i])+' resists '+Math.min(resist,n)+' '+type+' damage');n=Math.max(0,n-resist)}s.hp[i]=Math.max(0,before-n);note(s,name(run.picks[i])+' takes '+(before-s.hp[i])+' '+type+' damage');if(before>0&&!s.hp[i])note(s,name(run.picks[i])+' is down.');return before-s.hp[i]}
+function directDamage(s,i,n,type){const before=s.hp[i],baseType=type.replace(/^persistent /,'').startsWith('poison')?'poison':type.replace(/^persistent /,'');const resist=Math.max(charmBonus(i,baseType),s.tonics?.[i]?.warding&&['fire','void'].includes(baseType)?3:0);if(resist&&n>0){note(s,name(run.picks[i])+' resists '+Math.min(resist,n)+' '+type+' damage');n=Math.max(0,n-resist)}s.hp[i]=Math.max(0,before-n);countMetric(s,i,'damageTaken',before-s.hp[i]);if(before>0&&!s.hp[i])countMetric(s,i,'knockouts');note(s,name(run.picks[i])+' takes '+(before-s.hp[i])+' '+type+' damage');if(before>0&&!s.hp[i])note(s,name(run.picks[i])+' is down.');return before-s.hp[i]}
 function venomDamage(s,i){const v=s.venom[i];if(v&&s.hp[i]>0)directDamage(s,i,roll(s,venomProfiles[v.kind].dice[v.stage-1]),'poison (stage '+v.stage+')')}
 function inflictVenom(s,i,e){
  if(!e.venom||!s.hp[i])return false;const dc=Math.max(12,10+e.attack-2),mod=fortitudeMod(i)+(s.antidote[i]?Math.max(0,2-charmBonus(i,'fort')):0),d=roll(s,20),deg=outcome(d,mod,dc);
@@ -758,7 +814,7 @@ function shieldBlock(s,i,n){
  return reduced}
 function hurtHero(s,i,n){const before=s.hp[i],resistance=Math.max(guardianResistance(i),charmBonus(i,'physical')),actual=Math.max(0,n-resistance);
  if(resistance&&n>0)note(s,name(run.picks[i])+' armor resists '+Math.min(n,resistance)+' physical damage');
- s.hp[i]=Math.max(0,s.hp[i]-actual);if(actual)note(s,name(run.picks[i])+' takes '+actual+' HP damage');if(!s.hp[i])note(s,name(run.picks[i])+' is down.');return {i,damage:before-s.hp[i]}}
+ s.hp[i]=Math.max(0,s.hp[i]-actual);countMetric(s,i,'damageTaken',before-s.hp[i]);if(before>0&&!s.hp[i])countMetric(s,i,'knockouts');if(actual)note(s,name(run.picks[i])+' takes '+actual+' HP damage');if(!s.hp[i])note(s,name(run.picks[i])+' is down.');return {i,damage:before-s.hp[i]}}
 function interceptDestination(s,g,t,e){
  const from=s.pos[g],to=s.pos[t],taunted=e.taunt===g,limit=taunted?3:2;
  if(dist(from,to)>limit)return null;if(dist(from,to)===1&&clear(from,to))return {pos:from,path:[],stride:false};
@@ -814,7 +870,7 @@ function expireFeint(s,i){for(const e of s.enemies){if(e.tumbled?.[i])e.tumbled[
 function targetAC(s,i){const e=target(s),cover=coverAt(s.pos[i],i,true),greater=e.takingCover&&cover===2&&run.picks[i]==='mastermind'?4:cover;return e.ac+enemyShieldBonus(e)+formationBonus(s,e)+greater-(off(s,i)?2:0)-Math.max(e.frightened||0,focusWardActive(s,e.focusACPenalty)?2:0)}
 function weaponFlatBonus(s,i,e,reaction=false){const w=weaponFor(i);return (reaction?(w.react||0):0)+(e.hp<=e.max/2?(w.wounded||0):0)+(w.flanked&&flank(s,i)?w.flanked:0)}
 function weaponRider(s,i,e,degree){const w=weaponFor(i);if(!e.hp||degree<2)return 0;let dealt=0;
- if(w.rider&&!(w.vs==='undead'&&!isUndead(e))){const n=w.amount*(degree===3&&!e.critImmune?2:1);note(s,w.name+' · '+n+' '+w.rider+' damage');dealt=damageEnemy(s,n,w.rider,false,false)}
+ if(w.rider&&!(w.vs==='undead'&&!isUndead(e))){const n=w.amount*(degree===3&&!e.critImmune?2:1);note(s,w.name+' · '+n+' '+w.rider+' damage');dealt=damageEnemy(s,n,w.rider,false,false,i)}
  const p=w.persistentHit;if(e.hp&&p&&(!p.critOnly||degree===3)){const dice=!p.critOnly&&degree===3&&!e.critImmune?2:1;addEnemyPersistent(s,e,p.type,p.die,0,dice)}
  return dealt}
 function bombImpact(s,i,e){return footprint(e).filter(p=>dist(s.pos[i],p)<=4&&clear(s.pos[i],p)).sort((p,q)=>dist(s.pos[i],p)-dist(s.pos[i],q)||p-q)[0]}
@@ -823,8 +879,8 @@ function splashTargets(s,i,e){const cells=new Set(bombCells(s,i,e)),ts=[];for(le
 function throwBomb(s,i,key){const m=lootItems[key],b=m.bomb,e=target(s),original=s.target,ts=splashTargets(s,i,e),mod=level()+2+attrValue(i,1)-(s.prone[i]?2:0)-penalty(s.attacks++);
  const n=strikeRoll(s,name(run.picks[i])+' throws '+m.name+' → '+e.name,mod,targetAC(s,i),b.die,0),degree=s.lastDegree;
  if(degree>0){const splash=b.splash||0;note(s,m.name+' · '+splash+' splash '+b.type+' (including allies; no save)');
- for(const t of ts){if(t.side==='hero'){if(s.hp[t.i]>0)directDamage(s,t.i,splash,b.type)}else{s.target=t.i;const victim=s.enemies[t.i];if(victim.hp>0){damageEnemy(s,splash+(t.i===original?n:0),b.type,true,false);if(t.i===original&&degree>=2&&victim.hp)addEnemyPersistent(s,victim,b.type,b.persistentDie,0,degree===3&&!victim.critImmune?2:1)}}}}
- s.target=original;retarget(s);run.supplies[key]--;payAction();return true}
+ for(const t of ts){if(t.side==='hero'){if(s.hp[t.i]>0)directDamage(s,t.i,splash,b.type)}else{s.target=t.i;const victim=s.enemies[t.i];if(victim.hp>0){damageEnemy(s,splash+(t.i===original?n:0),b.type,true,false,i);if(t.i===original&&degree>=2&&victim.hp)addEnemyPersistent(s,victim,b.type,b.persistentDie,0,degree===3&&!victim.critImmune?2:1)}}}}
+ s.target=original;retarget(s);run.supplies[key]--;countMetric(s,i,'consumables');payAction();return true}
 function areaSupplyDC(i){return 10+level()+2+Math.max(attrValue(i,3),attrValue(i,4),attrValue(i,5))}
 function areaPlan(s){const p=s.areaPlan;if(!p||p.actor!==s.active||!supplyUsable(s,p.actor,p.key,true))return null;if(lootItems[p.key].bomb&&p.target!==s.target)return null;return p}
 function areaChoices(s,p){const a=areaSpells[lootItems[p.key].area];return a?Array.from({length:45},(_,i)=>i).filter(i=>validAreaOrigin(s.pos[p.actor],i,a)):[]}
@@ -832,15 +888,15 @@ function startArea(s,i,key){if(!supplyUsable(s,i,key,true))return false;s.charge
 function areaPreview(s,p){if(!p)return {cells:[],targets:[]};const m=lootItems[p.key],i=p.actor;if(m.bomb)return {cells:bombCells(s,i,target(s)),targets:splashTargets(s,i,target(s))};const a=areaSpells[m.area];return {cells:areaCells(s.pos[i],p.center,a),targets:areaTargets(s,'hero',i,p.center,a)}}
 function selectArea(s,pos){const p=areaPlan(s);if(!p||!areaChoices(s,p).includes(pos))return false;p.center=pos;return true}
 function confirmArea(s){const p=areaPlan(s);if(!p)return false;const m=lootItems[p.key],i=p.actor;if(m.bomb){s.areaPlan=null;return throwBomb(s,i,p.key)}
- const a=areaSpells[m.area];if(!validAreaOrigin(s.pos[i],p.center,a))return false;s.areaPlan=null;if(!resolveArea(s,'hero',i,p.center,a,areaSupplyDC(i)))return false;run.supplies[p.key]--;s.actions-=a.actions-1;payAction();return true}
+ const a=areaSpells[m.area];if(!validAreaOrigin(s.pos[i],p.center,a))return false;s.areaPlan=null;if(!resolveArea(s,'hero',i,p.center,a,areaSupplyDC(i)))return false;run.supplies[p.key]--;countMetric(s,p.actor,'consumables');s.actions-=a.actions-1;payAction();return true}
 function areaPanel(s,p,view){if(!p)return '';const m=lootItems[p.key],a=areaSpells[m.area],ts=view.targets,labels=side=>ts.filter(t=>t.side===side).map(t=>side==='hero'?name(run.picks[t.i]):s.enemies[t.i].name).join(', ')||'None';
  return '<section class="card"><b>'+m.name+'</b><p>'+(a?(directionalArea(a)?'Choose an adjacent direction.':'Choose a burst center.')+' · '+a.actions+' actions · basic '+a.save+' DC '+areaSupplyDC(p.actor):'Throw at '+target(s).name+' · 1 action · 1 splash on hit or miss, none on critical miss.')+'</p>'+
  (view.cells.length?'<p>Enemies in area: '+labels('enemy')+'<br>Allies in area: '+labels('hero')+(ts.some(t=>t.side==='hero')?' · FRIENDLY FIRE':'')+'</p><button data-areaconfirm="1">Confirm '+(a?'activation':'throw')+'</button>':'<p>Choose a highlighted aiming square.</p>')+'<button data-areacancel="1">Cancel</button></section>'}
 
 function swing(s,i,reaction=false,extraDie=false){const id=run.picks[i],pf=profile(id),bonus=pf[2]-(s.prone?.[i]?2:0)-(reaction?0:penalty(s.attacks++,id==='thief')),sneak=['thief','mastermind'].includes(id)&&off(s,i);
- const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],(id==='mastermind'?0:3+attrDelta(i,atkAttr(id)))+weaponFlatBonus(s,i,e,reaction),sneak,-1,false,weaponDice(i));
+ countMetric(s,i,'strikes');const e=target(s),damage=strikeRoll(s,name(id)+(reaction?' reaction':'')+' → '+foeName()+(sneak?' · Sneak Attack':''),bonus,targetAC(s,i),pf[3],(id==='mastermind'?0:3+attrDelta(i,atkAttr(id)))+weaponFlatBonus(s,i,e,reaction),sneak,-1,false,weaponDice(i));
  let extra=0;if(extraDie&&damage>0){extra=roll(s,pf[3])*(s.lastDegree===3&&!e.critImmune?2:1);note(s,'Proud Nail · '+extra+' extra weapon damage')}
- consumeFeint(e,i);const dealt=damageEnemy(s,damage+extra,weaponType(id))+weaponRider(s,i,e,s.lastDegree);if(dealt>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){if(e.mindless)note(s,e.name+' is immune to Brutal Beating fear');else{e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}}
+ if(s.lastDegree===3)countMetric(s,i,'criticalHits');if(sneak&&!e.precisionImmune&&s.lastDegree>=2)countMetric(s,i,'sneakHits');consumeFeint(e,i);const dealt=damageEnemy(s,damage+extra,weaponType(id),false,true,i,reaction)+weaponRider(s,i,e,s.lastDegree);if(dealt>0&&s.lastDegree===3&&e.hp>0&&hasFeat(i,'Brutal Beating')){if(e.mindless)note(s,e.name+' is immune to Brutal Beating fear');else{e.frightened=Math.max(e.frightened,1);note(s,'Brutal Beating · '+e.name+' frightened 1')}}}
 function championReady(s,i,t,e){return i!==t&&s.hp[i]>0&&s.ready[i]&&run.causeEnabled?.[i]!==false&&['justice','liberation'].includes(run.picks[i])&&enemyDistance(e,s.pos[i])<=3&&dist(s.pos[i],s.pos[t])<=3&&enemyLOS(e,s.pos[i])&&clear(s.pos[i],s.pos[t])}
 function reactionSteps(s,i,ignoreTerrain=false){if(!s.hp[i]||s.stiff[i]===2||s.webbed[i]||s.grabbed[i]||s.prone[i])return [];const from=s.pos[i],[x,y]=xy(from);
  return Array.from({length:45},(_,p)=>p).filter(p=>open(p)&&!s.pos.includes(p)&&dist(from,p)===1&&(!terrainExtra(s,p)||ignoreTerrain)&&hazardAt(s,p)?.kind!=='plate'&&clear(from,p)&&(()=>{const [X,Y]=xy(p);return x===X||y===Y||open(y*9+X)&&open(Y*9+x)})())}
@@ -921,7 +977,7 @@ function maneuver(s,k){const i=s.active,e=target(s);if(!canManeuver(s,k))return 
  if(k==='disarm')resolveDisarm(s,e,i,deg);
  if(k==='feint'){applyFeint(s,e,i,deg)}
  if(k==='demoralize'){(e.demoralized??=[]).push(i);if(deg>=2){e.frightened=Math.max(e.frightened||0,deg===3?2:1);note(s,e.name+' frightened '+e.frightened)}}
- if(k==='trip'){if(deg>=2){e.prone=true;note(s,e.name+' falls Prone');if(deg===3)damageEnemy(s,roll(s,6),'bludgeoning')}else if(deg===0){s.prone[i]=true;note(s,name(run.picks[i])+' falls Prone')}}
+ if(k==='trip'){if(deg>=2){e.prone=true;note(s,e.name+' falls Prone');if(deg===3)damageEnemy(s,roll(s,6),'bludgeoning',false,true,i)}else if(deg===0){s.prone[i]=true;note(s,name(run.picks[i])+' falls Prone')}}
  if(k==='grapple'){if(deg>=2){e.grabbedBy=i;e.grabOrigin=s.pos[i];e.grabExpires=s.heroTurns[i]+1;e.restrained=deg===3;note(s,e.name+(e.restrained?' Restrained':' Grabbed'))}else{if(e.grabbedBy===i)releaseGrab(e,s,'grip lost');if(deg===0){s.prone[i]=true;note(s,name(run.picks[i])+' falls Prone on critical Grapple failure')}}}
  payAction();return true}
 function enemyEscape(s,e,attacks){const g=e.grabbedBy,mod=e.attack-penalty(attacks)-enemyAttackPenalty(e),dc=10+skillMod(g,'grapple'),d=roll(s,20),deg=outcome(d,mod,dc);note(s,e.name+' Escape · '+(d+mod)+' vs DC '+dc+' · '+['critical failure','failure','success','critical success'][deg]);if(deg>=2)releaseGrab(e,s,'escapes');return deg}
@@ -942,7 +998,7 @@ function cantripOptions(s){return Object.keys(divineCantrips).filter(k=>cantripE
 function castCantrip(s,k){if(!cantripEligible(s,k))return false;const a=divineCantrips[k],i=s.active,e=target(s),rank=cantripRank(),dice=a.dice(rank);let n=0,degree;
  if(a.attack){n=strikeRoll(s,name(run.picks[i])+' casts '+a.name+' → '+e.name,divineDC(i)-10-penalty(s.attacks++)-(s.prone[i]?2:0),targetAC(s,i),a.die,0,false,-1,false,dice);degree=s.lastDegree;consumeFeint(e,i)}
  else{const mod=saveModifier(s,{side:'enemy',i:s.target,pos:e.pos},a.save,s.pos[i]),d=roll(s,20);degree=outcome(d,mod,divineDC(i));let rolled=0;for(let j=0;j<dice;j++)rolled+=roll(s,a.die);n=basicDamage(rolled,degree);note(s,a.name+' → '+e.name+' · '+a.save+' '+(d+mod)+' vs DC '+divineDC(i)+' · '+['critical failure','failure','success','critical success'][degree]+' · '+n+' '+a.type+' damage')}
- damageEnemy(s,n,a.type,false,false);
+ damageEnemy(s,n,a.type,false,false,i);
  if(e.hp>0&&k==='needles'&&degree===3)addEnemyPersistent(s,e,'bleed',1,rank,0);
  if(e.hp>0&&k==='daze'&&degree===0){e.stunned=Math.max(e.stunned||0,1);note(s,e.name+' · Stunned 1 (loses an action next turn)')}
  s.actions--;payAction();return true}
@@ -960,12 +1016,12 @@ function focusReady(s,i,combat=true){return Number.isInteger(i)&&i>=0&&i<3&&s.hp
 function canLayHands(s,i,t,combat=true){return focusReady(s,i,combat)&&focusSpells(i).includes('layhands')&&Number.isInteger(t)&&t>=0&&t<3&&(!combat||dist(s.pos[i],s.pos[t])<=1&&clear(s.pos[i],s.pos[t]))&&(s.hp[t]<heroMax(s,t)||(combat&&t!==i&&s.hp[t]>0&&!focusWardActive(s,s.focusWards[t])))}
 function mercyCondition(s,t){return s.grabbed[t]?'grab':s.stiff[t]?'paralysis':null}
 function canMercy(s,i,t){return focusReady(s,i)&&hasFeat(i,'Mercy of Grace')&&s.actions>=2&&s.hp[t]>0&&!!mercyCondition(s,t)&&dist(s.pos[i],s.pos[t])<=1&&clear(s.pos[i],s.pos[t])}
-function layHands(s,i,t,combat=true,mercy=false){initFocus(s);if(mercy?!canMercy(s,i,t):!canLayHands(s,i,t,combat))return false;s.focus[i]--;const healed=recoverHP(s,t,6*focusRank());note(s,name(run.picks[i])+' Lay on Hands → '+name(run.picks[t])+' · '+healed+' HP restored · '+s.focus[i]+'/'+focusMax(i)+' focus');
+function layHands(s,i,t,combat=true,mercy=false){initFocus(s);if(mercy?!canMercy(s,i,t):!canLayHands(s,i,t,combat))return false;s.focus[i]--;const healed=recoverHP(s,t,6*focusRank());countMetric(s,i,'healing',healed);countMetric(s,i,'focusSpent');note(s,name(run.picks[i])+' Lay on Hands → '+name(run.picks[t])+' · '+healed+' HP restored · '+s.focus[i]+'/'+focusMax(i)+' focus');
  if(combat&&t!==i&&s.hp[t]>0){s.focusWards[t]=focusWard(s);note(s,name(run.picks[t])+' gains +2 status AC for one round')}
  if(mercy){const kind=mercyCondition(s,t),dc=kind==='grab'?s.grabbed[t].dc:s.paralysisDC[t]||15+level(),mod=focusDC(i)-10,d=roll(s,20),deg=outcome(d,mod,dc);note(s,'Mercy of Grace · '+kind+' counteract check · '+(d+mod)+' vs DC '+dc+' · '+['critical failure','failure','success','critical success'][deg]);if(deg>=2){if(kind==='grab')releaseHeroGrab(s,t,'freed by Mercy');else{s.stiff[t]=0;s.paralysisDC[t]=0;note(s,name(run.picks[t])+' paralysis cleared')}}s.actions--}
  if(combat)payAction();return true}
 function canLayHandsEnemy(s,i=s.active){return focusReady(s,i)&&focusSpells(i).includes('layhands')&&target(s).hp>0&&isUndead(target(s))&&enemyInReach(target(s),s.pos[i],1)&&enemyLOS(target(s),s.pos[i])}
-function layHandsEnemy(s){const i=s.active,e=target(s);if(!canLayHandsEnemy(s,i))return false;s.focus[i]--;const d=roll(s,20),mod=saveModifier(s,{side:'enemy',i:s.target,pos:e.pos},'fort',s.pos[i]),deg=outcome(d,mod,focusDC(i));let n=0;for(let j=0;j<focusRank();j++)n+=roll(s,6);const dmg=basicDamage(n,deg);note(s,name(run.picks[i])+' Lay on Hands → '+e.name+' · Fortitude '+(d+mod)+' vs DC '+focusDC(i)+' · '+dmg+' vitality');damageEnemy(s,dmg,'vitality',false,false);
+function layHandsEnemy(s){const i=s.active,e=target(s);if(!canLayHandsEnemy(s,i))return false;s.focus[i]--;countMetric(s,i,'focusSpent');const d=roll(s,20),mod=saveModifier(s,{side:'enemy',i:s.target,pos:e.pos},'fort',s.pos[i]),deg=outcome(d,mod,focusDC(i));let n=0;for(let j=0;j<focusRank();j++)n+=roll(s,6);const dmg=basicDamage(n,deg);note(s,name(run.picks[i])+' Lay on Hands → '+e.name+' · Fortitude '+(d+mod)+' vs DC '+focusDC(i)+' · '+dmg+' vitality');damageEnemy(s,dmg,'vitality',false,false,i);
  if(e.hp&&deg<2){e.focusACPenalty=focusWard(s);note(s,e.name+' takes −2 status AC for one round')}
  payAction();return true}
 function focusOptions(s){const i=s.active,opts=[];for(let t=0;t<3;t++)if(canLayHands(s,i,t))opts.push(['layhands:'+t,'Lay on Hands · '+name(run.picks[t])+' · '+Math.min(6*focusRank(),heroMax(s,t)-s.hp[t])+' HP'+(t!==i?' +2 AC':'')+' · 1 action / 1 focus']);for(let t=0;t<3;t++)if(canMercy(s,i,t))opts.push(['mercy:'+t,'Mercy of Grace · '+name(run.picks[t])+' · heal + attempt to remove '+mercyCondition(s,t)+' · 2 actions / 1 focus']);if(canLayHandsEnemy(s,i))opts.push(['layhands:enemy','Lay on Hands · '+target(s).name+' · '+focusRank()+'d6 vitality · basic Fort DC '+focusDC(i)+' · 1 action / 1 focus']);return opts}
@@ -988,8 +1044,8 @@ function useSkill(s,k){if(!skills(s).some(([key])=>key===k))return;const i=s.act
  if(['trip','grapple','shove','reposition','disarm','demoralize','feint'].includes(k)){maneuver(s,k);return}
  if(k==='study'){recallMonster(s);return}
  else if(k==='taunt'){applyTaunt(s,i)}
- else {if(k==='spell'){const d=roll(s,20),bonus=target(s).fort+formationBonus(s,target(s))-(target(s).frightened||0),deg=outcome(d,bonus,spellDC()),n=Math.floor(fontRoll(s,i)*[2,1,.5,0][deg]);const dealt=damageEnemy(s,n,run.picks[i]==='healing'?'vitality':'void');if(dealt>0&&hasFeat(i,'Sap Life')&&!isUndead(target(s))){const heal=Math.min(fontRank(),heroMax(s,i)-s.hp[i]);s.hp[i]+=heal;note(s,'Sap Life · '+heal+' HP restored')}note(s,foeName()+' Fortitude '+(d+bonus)+' vs DC '+spellDC()+' · '+n+' spell damage ('+fontRank()+'d'+spellDie(i)+')')}
- else {const t=Number(k[4]),n=Math.min(heroMax(s,t)-s.hp[t],fontRoll(s,i)+8*fontRank());s.hp[t]+=n;note(s,'Heal restores '+n+' HP to '+name(run.picks[t]));if(hasFeat(i,'Communal Healing')){const other=[0,1,2].filter(j=>j!==t&&s.hp[j]>0&&s.hp[j]<heroMax(s,j)&&dist(s.pos[i],s.pos[j])<=6&&clear(s.pos[i],s.pos[j])).sort((a,b)=>(heroMax(s,b)-s.hp[b])-(heroMax(s,a)-s.hp[a]))[0];if(other!==undefined){const heal=Math.min(fontRank(),heroMax(s,other)-s.hp[other]);s.hp[other]+=heal;note(s,'Communal Healing · '+name(run.picks[other])+' restores '+heal+' HP')}}}s.font[i]--;s.actions--}payAction()}
+ else {if(k==='spell'){const d=roll(s,20),bonus=target(s).fort+formationBonus(s,target(s))-(target(s).frightened||0),deg=outcome(d,bonus,spellDC()),n=Math.floor(fontRoll(s,i)*[2,1,.5,0][deg]);const dealt=damageEnemy(s,n,run.picks[i]==='healing'?'vitality':'void',false,true,i);if(dealt>0&&hasFeat(i,'Sap Life')&&!isUndead(target(s))){const heal=Math.min(fontRank(),heroMax(s,i)-s.hp[i]);s.hp[i]+=heal;countMetric(s,i,'healing',heal);note(s,'Sap Life · '+heal+' HP restored')}note(s,foeName()+' Fortitude '+(d+bonus)+' vs DC '+spellDC()+' · '+n+' spell damage ('+fontRank()+'d'+spellDie(i)+')')}
+ else {const t=Number(k[4]),n=Math.min(heroMax(s,t)-s.hp[t],fontRoll(s,i)+8*fontRank());s.hp[t]+=n;countMetric(s,i,'healing',n);note(s,'Heal restores '+n+' HP to '+name(run.picks[t]));if(hasFeat(i,'Communal Healing')){const other=[0,1,2].filter(j=>j!==t&&s.hp[j]>0&&s.hp[j]<heroMax(s,j)&&dist(s.pos[i],s.pos[j])<=6&&clear(s.pos[i],s.pos[j])).sort((a,b)=>(heroMax(s,b)-s.hp[b])-(heroMax(s,a)-s.hp[a]))[0];if(other!==undefined){const heal=Math.min(fontRank(),heroMax(s,other)-s.hp[other]);s.hp[other]+=heal;countMetric(s,i,'healing',heal);note(s,'Communal Healing · '+name(run.picks[other])+' restores '+heal+' HP')}}}s.font[i]--;countMetric(s,i,'fontSpent');s.actions--}payAction()}
 
 function bossSweep(s,e){
  if(e.warden&&e.bossTurns%4===3){resolveArea(s,'enemy',s.enemies.indexOf(e),e.pos,areaSpells.gravePulse,10+e.attack-2);e.charging=false;return}
@@ -1098,7 +1154,7 @@ function resolveArea(s,side,index,center,a,dc){
  note(s,(side==='hero'?name(run.picks[index]):s.enemies[index].name)+' · '+a.name+' · '+base+' '+a.type+' · basic '+a.save+' DC '+dc);
  // Snapshot targets: reactions or deaths do not remove others from the original area.
  for(const t of targets){if(t.side==='hero'&&!s.hp[t.i])continue;const mod=saveModifier(s,t,a.save,origin)+(t.side==='hero'?divineGrace(s,t.i,a.save,origin,a.type!=='piercing'&&a.type!=='bludgeoning'&&a.type!=='slashing'):0),d=roll(s,20),degree=outcome(d,mod,dc),n=basicDamage(base,degree),label=t.side==='hero'?name(run.picks[t.i]):s.enemies[t.i].name;note(s,label+' '+a.save+' save · '+(d+mod)+' vs '+dc+' · '+['critical failure','failure','success','critical success'][degree]+' · '+n+' '+a.type);
- if(t.side==='hero'){if(n>0&&s.hp[t.i]>0){if(side==='enemy'){s.target=index;defend(s,t.i,n,a.type,true)}else directDamage(s,t.i,n,a.type)}}else{s.target=t.i;damageEnemy(s,n,a.type,true)}}
+ if(t.side==='hero'){if(n>0&&s.hp[t.i]>0){if(side==='enemy'){s.target=index;defend(s,t.i,n,a.type,true)}else directDamage(s,t.i,n,a.type)}}else{s.target=t.i;damageEnemy(s,n,a.type,true,true,side==='hero'?index:-1)}}
  s.target=original;return true}
 function chooseBlast(s,e){const index=s.enemies.indexOf(e),a=areaSpells.fireBurst;let best=null;for(let pos=0;pos<45;pos++){if(!validAreaOrigin(e.pos,pos,a))continue;const ts=areaTargets(s,'enemy',index,pos,a),heroes=ts.filter(t=>t.side==='hero'),allies=ts.filter(t=>t.side==='enemy'),score=heroes.length*3-allies.length*4+(heroes.some(t=>t.i===e.taunt)?.5:0);if(heroes.length&&score>0&&(!best||score>best.score))best={pos,score}}return best?.pos??null}
 function areaWarnings(s){return s.enemies.filter(e=>e.hp>0&&e.areaMark!=null).map(e=>'<p role="status" style="color:#ffb7a3"><b>'+e.name+' prepares Fire Burst!</b> Red squares will be hit on its next turn; move out of the marked area.</p>').join('')}
@@ -1310,13 +1366,13 @@ function treatWounds(s,i,t){if(!recoveryOpen(s)||recoveryState(s).used||!eligibl
  const r=recoveryState(s);r.used=true;r.medic=i;const d=roll(s,20),mod=medicineMod(i),degree=outcome(d,mod,15);let result=0;
  if(degree===3){for(let j=0;j<4;j++)result+=roll(s,8)}else if(degree===2){result=roll(s,8)+roll(s,8)}else if(degree===0){result=-roll(s,8)}
  if(result<0&&s.hp[t]>0&&s.hp.filter(Boolean).length===1)result=Math.max(result,1-s.hp[t]);
- const change=recoverHP(s,t,result);r.result=name(run.picks[i])+' Treat Wounds → '+name(run.picks[t])+' · '+(d+mod)+' vs DC 15 · '+['critical failure','failure','success','critical success'][degree]+' · '+(change>=0?'+':'')+change+' HP';note(s,r.result);return true}
+ const change=recoverHP(s,t,result);countMetric(s,i,'healing',change);r.result=name(run.picks[i])+' Treat Wounds → '+name(run.picks[t])+' · '+(d+mod)+' vs DC 15 · '+['critical failure','failure','success','critical success'][degree]+' · '+(change>=0?'+':'')+change+' HP';note(s,r.result);return true}
 function basicTreatment(s,t){if(!recoveryOpen(s)||recoveryState(s).used||!Number.isInteger(t)||t<0||t>2||s.hp[t]>=heroMax(s,t))return false;
- const r=recoveryState(s);r.used=true;const n=recoverHP(s,t,level()+2);r.result='Basic treatment → '+name(run.picks[t])+' · '+n+' HP restored';note(s,r.result);return true}
+ const r=recoveryState(s);r.used=true;const n=recoverHP(s,t,level()+2);metrics(s).partyHealing+=n;r.result='Basic treatment → '+name(run.picks[t])+' · '+n+' HP restored';note(s,r.result);return true}
 function sanctuaryRoom(){return (run.room||1)===5||ninthRoom()}
 function sanctuary(s,choice){if(!recoveryOpen(s)||!sanctuaryRoom()||recoveryState(s).rest||!['rest','resupply'].includes(choice))return false;
  const r=recoveryState(s);r.rest=choice;
- if(choice==='rest'){const changes=run.picks.map((id,i)=>s.hp[i]>0?recoverHP(s,i,Math.ceil(heroMax(s,i)/4)):0);note(s,'Sanctuary rest · '+changes.map((n,i)=>name(run.picks[i])+' +'+n+' HP').join(' · '))}
+ if(choice==='rest'){const changes=run.picks.map((id,i)=>s.hp[i]>0?recoverHP(s,i,Math.ceil(heroMax(s,i)/4)):0);metrics(s).partyHealing+=changes.reduce((a,b)=>a+b,0);note(s,'Sanctuary rest · '+changes.map((n,i)=>name(run.picks[i])+' +'+n+' HP').join(' · '))}
  else{s.potions+=2;note(s,'Sanctuary resupply · two minor healing potions');for(let i=0;i<3;i++)if(s.hp[i]>0&&['healing','harmful'].includes(run.picks[i])&&s.font[i]<4){s.font[i]++;note(s,name(run.picks[i])+' recovers one divine font cast from the sanctuary blessing')}}
  return true}
 function recoveryPanel(s){if(!recoveryOpen(s))return '';const r=recoveryState(s),i=recoveryMedic(s),patients=[0,1,2].filter(t=>s.hp[t]<heroMax(s,t)),medics=[0,1,2].filter(j=>eligibleMedic(s,j));
@@ -1335,7 +1391,7 @@ function supplyPanel(s){
 }
 function drink(s,i){
  if(!Number.isInteger(i)||i<0||i>2||!s.potions||s.hp[i]>=heroMax(s,i))return false;
- const n=Math.min(roll(s,8),heroMax(s,i)-s.hp[i]);s.hp[i]+=n;s.potions--;note(s,name(run.picks[i])+' recovers '+n+' HP from a minor healing potion.');return true;
+ const n=Math.min(roll(s,8),heroMax(s,i)-s.hp[i]);s.hp[i]+=n;s.potions--;countMetric(s,i,'potions');metrics(s).partyHealing+=n;note(s,name(run.picks[i])+' recovers '+n+' HP from a minor healing potion.');return true;
 }
 function field(){const s=run.battle,r=layout(),win=won(s);
  let h='<header><h1>'+r.title+'</h1><small>Room '+(run.room||1)+' of 10 · Level '+level()+'</small></header>';
@@ -1418,7 +1474,7 @@ function useFeat(s,k){const i=s.active;if(k==='charge')return startCharge(s);if(
  if(k==='shieldtaunt'&&hasFeat(i,'Shielding Taunt')&&!s.flourish&&enemyDistance(target(s),s.pos[i])<=6&&enemyLOS(target(s),s.pos[i])){s.flourish=true;if(shieldUsable(s,i))s.raised[i]=true;applyTaunt(s,i);note(s,'Shielding Taunt · '+(shieldUsable(s,i)?'shield raised':'shield unusable'));payAction();return true}
  if(k==='proud'&&hasFeat(i,'Proud Nail')&&proudReady(s)){s.flourish=true;swing(s,i,false,true);payAction();return true}
  if(k==='swipe'&&hasFeat(i,'Swipe')&&s.actions>=2&&!s.flourish){const other=swipeOther(s);if(other<0)return false;const original=s.target,id=run.picks[i],pf=profile(id),bonus=pf[2]-penalty(s.attacks),d=roll(s,20);let base=3+attrDelta(i,atkAttr(id));for(let j=0;j<weaponDice(i);j++)base+=roll(s,pf[3]);s.flourish=true;
- for(const j of [original,other]){s.target=j;const ac=targetAC(s,i),deg=outcome(d,bonus,ac),damage=deg>=2?(base+weaponFlatBonus(s,i,target(s)))*(deg===3&&!target(s).critImmune?2:1):0;note(s,'Swipe → '+foeName()+' · d20 '+d+' + ('+bonus+') vs AC '+ac+' · '+['critical miss','miss','hit','critical hit'][deg]+' · '+damage+' damage');consumeFeint(target(s),i);damageEnemy(s,damage,weaponType(id));weaponRider(s,i,target(s),deg)}
+ for(const j of [original,other]){s.target=j;const ac=targetAC(s,i),deg=outcome(d,bonus,ac),damage=deg>=2?(base+weaponFlatBonus(s,i,target(s)))*(deg===3&&!target(s).critImmune?2:1):0;note(s,'Swipe → '+foeName()+' · d20 '+d+' + ('+bonus+') vs AC '+ac+' · '+['critical miss','miss','hit','critical hit'][deg]+' · '+damage+' damage');consumeFeint(target(s),i);damageEnemy(s,damage,weaponType(id),false,true,i);weaponRider(s,i,target(s),deg)}
  s.target=original;s.attacks+=2;s.actions--;payAction();return true}
  return false}
 function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
@@ -1472,9 +1528,9 @@ function battleClick(d){if(!run.battle||d.reset)return false;const s=run.battle;
  else if(d.end){preview=null;advance();enemyTurn()}return true}
 
 function bestiaryPanel(){return '<details><summary>General bestiary · '+generalBestiary.filter(x=>x.playable).length+' of '+generalBestiary.length+' playable</summary><ul>'+generalBestiary.map(x=>'<li><b>'+x.name+'</b> · '+x.role+' · '+x.ability+(x.playable?'':' (planned)')+'</li>').join('')+'</ul><p class="legend">Environment pools are planned separately; current floor choices use the original three environments. Seeded general slots preserve room difficulty and boss milestones.</p></details>'+(run.floor===0?'<details><summary>Crypt bestiary · 9 themed types</summary><ul>'+environmentBestiary.crypt.map(id=>'<li><b>'+monsterTypes[id].label+'</b> · '+monsterTypes[id].info+'</li>').join('')+'</ul><p class="legend">Budgeted themed encounters vary in size and creature levels. General creatures appear in rooms 4, 6 and 9; potential reinforcements are reserved in the budget.</p></details>':'')}
-function render(){if(run.battle){app.innerHTML=field();return}const n=run.picks.length;let heading,body;if(n<3){heading='Choose hero '+(n+1)+' of 3';body=dealDraft(run.seed)[n].map(heroCard).join('')}else if(run.floor===null){heading='Choose the first floor';body=floors.map(([title,desc],i)=>'<article class="card"><h3>'+title+'</h3><p>'+desc+'</p><footer><button data-floor="'+i+'">Choose '+title+'</button></footer></article>').join('')}else{heading=floors[run.floor][0];body='<article class="card"><h3>Expedition assembled</h3><p>Your party and starting environment are selected.</p><button data-enter="1">Enter room 1</button></article>'}
-app.innerHTML='<header><h1>Expedition draft</h1><small>Seed '+run.seed+'</small></header><b>Party</b><ul>'+Array.from({length:3},(_,i)=>'<li>'+(run.picks[i]?name(run.picks[i]):'Open slot')+'</li>').join('')+'</ul><h2 id="stage" tabindex="-1">'+heading+'</h2><section class="grid">'+body+'</section>'+bestiaryPanel()+(run.floor!==null?'<div class="actions"><button data-reset="same">Replay seed</button><button data-reset="new">New draft</button></div>':'')}
-app.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(battleClick(b.dataset)){persist();render();return}if(b.dataset.enter&&run.floor!==null){run.battle=newRoom();enemyTurn();preview=null;persist();render();return}const n=run.picks.length;if(n<3&&dealDraft(run.seed)[n].includes(b.dataset.pick))run.picks.push(b.dataset.pick);else if(n===3&&run.floor===null&&['0','1','2'].includes(b.dataset.floor))run.floor=Number(b.dataset.floor);else if(run.floor!==null&&b.dataset.reset)run=fresh(b.dataset.reset==='same'?run.seed:randomSeed());else return;persist();render();document.getElementById('stage')?.focus()});
-if(run.battle&&!run.battle.order){run.battle=newRoom();enemyTurn();persist()}else if(run.battle){kit(run.battle);if(run.battle.active>=3)enemyTurn();persist()}
+function render(){if(run.battle){const s=run.battle;app.innerHTML=field()+((!s.hp.some(Boolean)||tenthRoom()&&won(s))?journalPanel():'');return}const n=run.picks.length;let heading,body;if(n<3){heading='Choose hero '+(n+1)+' of 3';body=dealDraft(run.seed)[n].map(heroCard).join('')}else if(run.floor===null){heading='Choose the first floor';body=floors.map(([title,desc],i)=>'<article class="card"><h3>'+title+'</h3><p>'+desc+'</p><footer><button data-floor="'+i+'">Choose '+title+'</button></footer></article>').join('')}else{heading=floors[run.floor][0];body='<article class="card"><h3>Expedition assembled</h3><p>Your party and starting environment are selected.</p><button data-enter="1">Enter room 1</button></article>'}
+app.innerHTML='<header><h1>Expedition draft</h1><small>Seed '+run.seed+'</small></header><b>Party</b><ul>'+Array.from({length:3},(_,i)=>'<li>'+(run.picks[i]?name(run.picks[i]):'Open slot')+'</li>').join('')+'</ul><h2 id="stage" tabindex="-1">'+heading+'</h2><section class="grid">'+body+'</section>'+bestiaryPanel()+journalPanel()+(run.floor!==null?'<div class="actions"><button data-reset="same">Replay seed</button><button data-reset="new">New draft</button></div>':'')}
+app.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.historyexport){journalShowExport();return}if(run.battle){journalRecord();if(b.dataset.retry&&!run.battle.hp.some(Boolean))journalEnsure(true).retries++}if(battleClick(b.dataset)){persist();render();return}if(b.dataset.enter&&run.floor!==null){run.battle=newRoom();journalEnsure(false);enemyTurn();preview=null;persist();render();return}const n=run.picks.length;if(n<3&&dealDraft(run.seed)[n].includes(b.dataset.pick))run.picks.push(b.dataset.pick);else if(n===3&&run.floor===null&&['0','1','2'].includes(b.dataset.floor))run.floor=Number(b.dataset.floor);else if(run.floor!==null&&b.dataset.reset)run=fresh(b.dataset.reset==='same'?run.seed:randomSeed());else return;persist();render();document.getElementById('stage')?.focus()});
+journalMemory=journalRead();if(run.battle&&!run.battle.order){run.battle=newRoom();journalEnsure(true);enemyTurn();persist()}else if(run.battle){journalEnsure(true);kit(run.battle);if(run.battle.active>=3)enemyTurn();persist()}
 render();
 </script></html>
