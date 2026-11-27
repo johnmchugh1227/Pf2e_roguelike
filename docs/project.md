@@ -2,6 +2,16 @@
 
 Open [index.html](../index.html) in a browser. It contains the rules, game data, embedded PNGs, rendering and input handlers. A seed feeds `fresh` and `dealDraft`; three picks enter one of three ten-room environments. Follow `newRoom` and `kit` into combat, `field` for the board, `battleClick` for actions and `lootPanel` for rewards. Active runs and the journal persist in localStorage. Preserve old saves and seed reproducibility. See [the roadmap](work.md) for release goals, owners and audit results.
 
+## Deployment and playtesting
+
+GitHub Pages serves the root `index.html` from `main`. The HTML includes the game and its art. Review and playtest a branch locally by opening its `index.html` in a browser. Use a private window for a fresh draft when a saved battle resumes.
+
+1. For each review build that changes what a player sees or plays, increment the number in `BUILD_ID` in `index.html`. Check the latest `main` before merge so two playable builds never share a number. Documentation-only and test-only edits keep the current identifier.
+2. In the handoff, give the expected menu label, the steps to reach the change (including seed, party or environment when relevant), and what the tester should observe. List automated commands and results separately from observations on a browser or device.
+3. After the approved branch merges to `main`, check [Actions](https://github.com/johnmchugh1227/Pf2e_roguelike/actions) for a successful Pages deployment of the merge commit. The publishing source and live URL are listed in [Pages settings](https://github.com/johnmchugh1227/Pf2e_roguelike/settings/pages).
+4. Open the [hosted game](https://johnmchugh1227.github.io/Pf2e_roguelike/) and compare the small build label beside the seed in the Expedition draft header with the handoff. If it shows an older build, verify the deployed commit and reload in a fresh private window. This also lets you keep a saved expedition in your regular window.
+5. Follow the handoff steps and report the displayed build, seed, device/browser, actions, expected behavior and actual result. Include the party and room for encounter reports.
+
 ## Implemented systems at merged main
 
 | System | Implementation and verification |
