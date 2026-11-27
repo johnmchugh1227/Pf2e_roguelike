@@ -45,6 +45,36 @@ Commit `1e8574d` introduced universal progression. `a052b96` adjusted first-floo
 
 Earlier automated expeditions reportedly had unusually high clear rates. Treat that as historical heuristic evidence. Human win rate and pacing need human sessions. Compare identical seeds and policies across revisions and report resource consumption, downs, party mix and where decisions or enemy mechanics were hard to read. For a small heuristic sample use `node tests/balance.cjs index.html 8 0 1`. Use knowledge-balance for a knowledge-limited pilot, boss-balance for Warden counterplay and fundamental-balance for the fixed-party smoke matrix.
 
+### BAL-1 results on build 2
+
+**Drafted expeditions.** On merged commit `874869a`, the pilot started seeds 1–36 once in each environment and played through room ten. Every seed used the same draft, party and decision policy across all three routes. The 36 matched triples covered 22 distinct three-build compositions and all nine builds. Twenty triples included a Healing Cloistered Cleric. There were 108 clears from 108 starts, with zero retries, abandonments or harness stalls.
+
+| Route | Clears | Mean boss rounds | Mean party HP, boss entry → finish | Mean potions used before boss | Mean potions carried into boss | Heroes down at room end, rooms 1–9 / 10 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Burial Crypt | 36/36 | 5.61 | 97% → 72% | 4.14 | 5.81 | 3 / 1 |
+| Flooded Warrens | 36/36 | 5.19 | 98% → 79% | 4.39 | 5.17 | 3 / 0 |
+| Ruined Watchfort | 36/36 | 4.67 | 96% → 80% | 6.06 | 3.78 | 6 / 0 |
+
+Watchfort used the most potions on the approach. All six room-end downs there occurred in rooms 7–9, including three in room 8, where parties finished at 74% HP on average. On seed 9, the same Reach Fighter, Thief and Mastermind ended room 8 at 57/162 HP in Crypt, 133/162 in Warrens and 71/162 in Watchfort. Against the Warlord, 23 of the 36 parties finished faster than against the Sepulcher Warden, five tied and eight took longer. Compared with the Drowned Warden, 18 finished faster, 11 tied and seven took longer.
+
+HP is measured before post-combat recovery and includes in-combat healing. Downs count heroes at zero HP when a room ends. Potion spending includes between-room recovery up to boss entry. The pilots drank three further potions in Crypt boss fights across all 36 runs, and zero in the other boss fights. The standard harness's expedition-total potion field also counts healing after room ten. The per-room counters exclude that final recovery.
+
+**Fixed-party check.** The independent 18-run smoke matrix cleared all routes. The Warlord was the shortest or tied boss fight for all six party/seed pairs. These parties were assigned directly, and each had only one seed. Use the drafted cohort above for examples reachable through the normal draft.
+
+**Does responding to a warning help?** A separate pilot played five fixed parties on seeds 1–8 under two policies. Both made the same decisions before room ten. In the boss fight, one continued its normal attacks. The other sometimes moved off warned squares, attacked or disabled active Crypt wardstones, and lowered the Watchfort standard if already within reach. Each pair entered the boss with identical HP. The table gives normal → responsive results. Targets count hero inclusions across logged attack resolutions per boss start. A hero can appear more than once, and an inclusion can miss. Watchfort logs the volley for this measure.
+
+| Boss | Boss starts per policy | Boss wins | Mean logged targets | Mean rounds | Mean finish HP |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Sepulcher Warden | 40 | 39 → 40 | 8.00 → 0.88 | 6.93 → 7.78 | 59% → 68% |
+| Drowned Warden | 40 | 40 → 40 | 5.00 → 1.25 | 5.08 → 6.18 | 77% → 79% |
+| Iron Warlord | 39 | 39 → 39 | 0.64 → 0.00 | 4.64 → 4.44 | 78% → 81% |
+
+The responsive pilot lowered the standard in 8/39 Warlord fights. In the other 31 it also avoided every logged volley target. The comparison measures the combined policy, so it cannot isolate the value of lowering the standard. The same fixed Mastermind/Thief/Harmful Warpriest party lost in Watchfort room 8 on seed 4 under both policies, before it could face the Warlord. On Crypt seed 3 that party lost to the boss under the normal policy and won under the responsive one. All 240 policy runs terminated without a stall.
+
+**Human evidence.** The owner is playtesting. The current estimates describe deterministic pilots on consecutive seeds, with shared seeds across routes. They do not establish a human clear rate or a population confidence interval. Keep the first-floor target open until the owner reviews playtest evidence. The journal fields to compare are build, seed, party, room reached, retries and resource use. For Watchfort, also record whether room 8 depleted supplies and which response the party chose at the first volley.
+
+**Reproduce.** For each environment (`0` Crypt, `1` Warrens, `2` Watchfort), run `node tests/balance.cjs index.html 36 <environment> 1 --runs`. Match records by seed and picks. Within each run, `stats[9]` gives the boss entry, finish, and cumulative resources through combat. For the policy comparison, run `node tests/boss-balance.cjs index.html <environment>`, match party and seed, and filter on `entered` for boss measures. Run `node tests/fundamental-balance.cjs index.html` for the fixed-party smoke check.
+
 ## Bosses
 
 | Boss | Current encounter | Remaining evidence or development |

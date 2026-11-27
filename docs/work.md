@@ -1,6 +1,6 @@
 # Alpha 0.1 roadmap and task queue
 
-The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **BOSS-3 is ready for a human room-ten playtest on the build 2 review branch.**
+The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **Build 2 is merged. The BAL-1 simulations are ready for review while the owner playtests BOSS-3.**
 
 ## Release goals
 
@@ -19,8 +19,8 @@ The repository is the project record. This queue sets order and ownership. The [
 | WF-1 | Lead | Approved and merged | Five specialists, two-child cap, lead-only delegation and handoff conventions. [Setup PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/2) |
 | 1 · ROAD-1 | Lead | Merged | Reconciled the roadmap with the implemented game. [Roadmap PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/3) |
 | 2 · ART-1 | Art and Asset Designer → lead | Completed, approved and merged | Shared Watchfort hobgoblin sprite integrated and checked on desktop and phone-sized boards. [Merged PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4) |
-| 3 · BOSS-3 | Game Developer → lead | In review · human playtest pending on `codex/boss-3-watchfort` | Verify the Warlord's signaled volley, terrain cover and one-action standard interaction, then playtest room ten. |
-| 4 · BAL-1 | Balance Analyst | Queued | Validate both Wardens and the finished Warlord, encounter pressure and resource attrition across varied parties. Report paired seeded evidence and human observations separately. Seek owner approval before adopting a first-floor target. |
+| 3 · BOSS-3 | Game Developer → lead | [Merged](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/6) · owner playtest in progress | Verify the Warlord's warning and standard decision in human play. |
+| 4 · BAL-1 | Balance Analyst → lead | Automated evidence in review on `codex/bal-1-first-floor` | [Paired results for three routes and three bosses](project.md#bal-1-results-on-build-2). Add the owner's human observations when available. The first-floor target remains open. |
 | 5 · ENC-1 | Game Developer | Queued | Identify repeated or unstable encounters from seeds and journals, prioritize observed problems, and verify fixes against reproductions. |
 | 6 · UI-1 | UI/UX Designer | Queued | Audit all six integrated surfaces in the project guide, including boss telegraphs. Finish outstanding Slate & Iron presentation and touch flows identified in play. Defer movement, attack and healing animations to polish. |
 | 7 · QA-1 | QA and Testing Engineer | Queued | Play on iPhone and iPad. Record device, OS/browser, orientation, seed, party, touch targets, scroll behavior and save/reload. Cover draft through boss, reward and journal. Run relevant regressions and log blockers. |
@@ -47,6 +47,8 @@ The repository is the project record. This queue sets order and ownership. The [
 
 **Checks run on build 2.** All 16 focused scripts passed with `node tests/<name>.cjs`: the 15 listed in the ROAD-1 handoff plus `iron-warlord` (35 assertions). The new regression uses seed 34 to exercise telegraph geometry, rack cover, pillar shadow, lowering, subsequent sweeps and loading an older room-ten save. In a Chrome room-ten fixture at 1280×900 and 390×844, the 45-cell board fit the viewport, the volley warning appeared, and clicking Lower standard spent one action and survived reload. `node tests/balance.cjs index.html 3 2 34` cleared all ten rooms on seeds 34–36 without a stall. Room ten averaged four rounds.
 
-**Next action.** Record a human room-ten playtest with build, party, seed, device and whether the warning gave enough information to choose between cover and flanking. BAL-1 follows encounter review.
+**BAL-1 handoff.** Expected menu label `Alpha 0.1 build 2`. Seeded tests ran against merged game `874869a`. The [project guide](project.md#bal-1-results-on-build-2) gives commands, environment IDs, cohorts, denominators and results. The drafted cohort repeated identically across two passes. The 18 fixed-party smoke runs and 240 paired-policy expeditions also completed. The original Crypt policy results and the existing quick/backup summary matched their baselines. The knowledge-limited pilot smoke cleared 2/2, and the three focused boss regressions passed 144, 192 and 35 assertions respectively.
+
+**Next action.** Add the owner's separate human playtest observations to BAL-1, including room 8 supply pressure and whether moving, taking cover or lowering the standard felt worthwhile in room ten. Review those observations before deciding whether to set a first-floor target. ENC-1 follows the balance review.
 
 Before a context limit approaches, warn the owner and update the active row with branch/commit, scope, evidence, unresolved decisions and the exact next action. A fresh chat starts here. Follow [repository delegation rules](../AGENTS.md): one writer per file, up to two specialists, no nested delegation. Escalate major design choices, permissions and unresolved blockers.
