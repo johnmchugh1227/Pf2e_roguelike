@@ -45,9 +45,9 @@ Earlier automated expeditions reportedly had unusually high clear rates. Treat t
 
 ## Slate & Iron art and interface
 
-`spriteAssets` has 34 entries covering nine heroes and 25 creature/boss sprites, including dedicated Crypt enemies. `alphaArt` contains the additional 41 named PNGs embedded by `88df09c`. The package covers both later boss sprites, Warrens and Watchfort terrain, environmental props, three wardstone states, treasure chests, sanctuary shrine, war standard, equipment icons and combat action icons. Commit `3a566e6` integrated five revised seamless terrain tiles.
+`spriteAssets` has 35 entries covering nine heroes and 26 creature/boss sprites, including dedicated Crypt enemies. `alphaArt` contains the additional 41 named PNGs embedded by `88df09c`. The package covers both later boss sprites, Warrens and Watchfort terrain, environmental props, three wardstone states, treasure chests, sanctuary shrine, war standard, equipment icons and combat action icons. Commit `3a566e6` integrated five revised seamless terrain tiles.
 
-The audit traced 34 of the 41 package entries to JS or CSS consumers, including terrain used directly as CSS backgrounds. Seven had no identified render path: `war-standard`, `war-banner`, `rubble`, `floodgate`, `drain-grate`, `protection` and `upgrades`. Inventory does not imply that an object has encounter behavior. Check `spriteAssets`, `spriteAliases`, `alphaArt`, CSS backgrounds and `terrainCell` before commissioning art. See ART-1 for the confirmed hobgoblin lookup gap and end-to-end handoff trial.
+The audit traced 34 of the 41 package entries to JS or CSS consumers, including terrain used directly as CSS backgrounds. Seven had no identified render path: `war-standard`, `war-banner`, `rubble`, `floodgate`, `drain-grate`, `protection` and `upgrades`. Inventory does not imply that an object has encounter behavior. Check `spriteAssets`, `spriteAliases`, `alphaArt`, CSS backgrounds and `terrainCell` before commissioning art. The Watchfort hobgoblin soldier and archer share a weapon-neutral sprite. Its [source PNG](../assets/hobgoblin.png) is embedded under their existing species key.
 
 | Interface area | Live integration to inspect on device |
 | --- | --- |
