@@ -1,35 +1,65 @@
-# Project guide
+# Alpha 0.1 project guide
 
-## Design and architecture
+Open [index.html](../index.html) in a browser. It contains the rules, game data, embedded PNGs, rendering and input handlers. A seed feeds `fresh` and `dealDraft`; three picks enter one of three ten-room environments. Follow `newRoom` and `kit` into combat, `field` for the board, `battleClick` for actions and `lootPanel` for rewards. Active runs and the journal persist in localStorage. Preserve old saves and seed reproducibility. See [the roadmap](work.md) for release goals, owners and audit results.
 
-Open [index.html](../index.html) in a browser. It contains the CSS, game data, embedded PNGs, rules, rendering and input handling. A seeded draft (`fresh`, `dealDraft`) yields a three-hero party. The Burial Crypt, Flooded Warrens and Ruined Watchfort have distinct terrain. Follow `newRoom` and `kit` into combat, `field` for board rendering, `battleClick` for actions and `lootPanel` for rewards. Advancement occurs between rooms. Active runs and journal records persist in localStorage. Preserve compatibility when touching their shapes. Many tests extract the inline script and run it with stubbed browser services.
+## Implemented systems at merged main
 
-## Art style and mobile interaction
-
-Use the current board as the reference at actual phone size. The terrain uses dark, desaturated surfaces, warm selection outlines and pixelated sprites. Reference `spriteAssets`, `spriteAliases`, `alphaArt` and `terrainCell` before proposing new art. Match the scale and footing of an existing unit of the same size. Check large sprites against adjacent cells, overlays and targeting markers. Preserve fallback glyphs and embedded PNG references. Sprite and environment tests exercise asset lookup and board output.
-
-Keep the existing parchment cards, serif headings, visible keyboard focus and tap-driven controls. At and below the 640 px card breakpoint, check that cards stack, action controls remain reachable and horizontal board scrolling stays inside its container. Check narrow portrait and landscape layouts in a browser. Exercise selection, inspection and reward confirmation by touch. Static markup assertions cover only part of this experience.
-
-For an authorized art request, first identify the existing reference, intended board size and integration key. The specialist capability probe on 2026-11-27 found `tools.image_gen__imagegen` in a child session. It checked tool exposure only. Recheck in the actual art session, then validate a single requested candidate at game scale before considering batch work. Retain the original asset through review. Artwork generation is on demand.
-
-## Balance targets
-
-Preserve PF2e's four degrees of success, critical thresholds, natural-roll adjustments, action economy and multiple attack penalty where applicable. Start from existing helpers such as `penalty` and `targetAC`. Record the rationale and expected effect of any proposed departure before tuning.
-
-The eventual target is approximately 50% full-run wins. Agree on the target player cohort and what finishes a full run before tuning. For a defined cohort, count unique eligible starts, count wins at the agreed endpoint and report wins/starts with sample size, uncertainty, build, environment, party, retry policy and missing or abandoned starts. A terminal-only journal cannot supply every start. Keep partial records and repeated attempts visible. The current journal's `floor_clear` and `cleanClear` describe the tenth-room floor endpoint. Confirm that endpoint matches the intended full run before treating it as the success measure.
-
-Use fixed seeds and the same policy for before/after comparisons. For a small reproducible heuristic sample run `node tests/balance.cjs index.html 8 0 1` (eight seeds, first environment, starting at seed 1). Inspect knowledge-limited and boss harnesses for narrower questions. Report human playtest and simulated results separately. There is no measured player win-rate baseline in this setup.
-
-## Verification
-
-Run Node scripts directly from the repository root. Start with the smallest relevant check. Use [the tests directory](../tests/) and each script's usage for the wider matrix.
-
-| Change area | Example command or check |
+| System | Implementation and verification |
 | --- | --- |
-| Rules, resources, bosses | `node tests/fundamentals.cjs`, `node tests/resources.cjs`, `node tests/drowned-warden.cjs` |
-| Art and board layout | `node tests/sprites.cjs`, `node tests/alpha-environments.cjs`, browser check at phone width |
-| UI flows and combat feedback | `node tests/alpha-ui.cjs`, `node tests/combat-feedback.cjs`, touch and keyboard playthrough |
-| Local journal and outcome reporting | `node tests/telemetry.cjs` and a save/reload check |
-| Balance comparisons | `tests/balance.cjs`, `tests/knowledge-balance.cjs` and `tests/boss-balance.cjs` with recorded inputs |
+| Three actions and PF2e degrees of success | Hero turns grant three actions; `payAction` spends them. `outcome` uses ±10 thresholds and natural 20/1 degree adjustments. Multiple attack penalties live in `penalty`. Preserve these foundations where practical. |
+| Draft, nine builds and class-specific feats | `roster` and `dealDraft` offer Shield and Reach Fighters, Bodyguard Guardian, Justice and Liberation Champions, Healing Cloistered Cleric and Harmful Warpriest, Thief and Mastermind Rogues. Three picks form a party. Advancement panels apply build choices and level boosts; alpha-environments exercises levels 2–5. |
+| Rogue Quick Draw | Implemented for both Rogue builds. quick-draw exercises Thief and Mastermind. |
+| Enemy AI, positioning, taunts and defensive reactions | `enemyTurn`, terrain/line-of-sight checks, `applyTaunt`, `tauntPenalty`, movement reactions and `defend` affect legal actions and damage. hide and boss cover specific positioning and reaction cases. AI quality remains a playtest question. |
+| Recall Knowledge, hazards, summoning and destructible objectives | `recallMonster` and `recallHazard` track discoveries; `summonSkeleton` places reinforcements. Crypt wardstones can be attacked and destroyed. mastermind, alpha-environments and boss exercise knowledge, terrain cues and wardstone counterplay. |
+| Loot, weapons, trinkets and magical equipment | `lootItems`, reward claims, gear and supplies feed combat; trinkets-tactics and resources exercise effects, healing and recovery. |
+| Cone, line, burst, emanation and splash | `areaCells`, `areaTargets` and `resolveArea` determine affected squares and targets. Bomb splash uses `splashTargets`. Verified in source; the audit did not separately play each shape. |
+| Transfers and damage comparisons | Compatible looted weapons move between heroes after encounters. Previews compare damage for the recipient. weapon-transfer and weapon-comparison cover ownership, compatibility, runes and riders. |
+| Combat recaps, damage/healing indicators and wardstone absorption | The board shows action feedback, actual HP deltas and a prominent ward absorption message. combat-feedback covers feedback values and transitions. The owner reports the ward feedback change followed playtesting. |
+| Local run journal and seeded testing | `journalRecord` and export preserve run outcomes, room snapshots and retry metadata. telemetry covers record handling. Four Node balance harnesses provide reproducible automated comparisons. |
+| Slate & Iron advancement | `alphaAdvancement` is in the live levels 2–5 flow. alpha-environments checks choices and confirmation. Device usability remains open. |
 
-For setup-only changes, validate the TOML, documentation links and review diff. A gameplay regression warrants a reproducible failing check before a fix.
+## Progression and difficulty
+
+Fundamentals are guaranteed to every hero at the party's attained level. `fundamentalRunes` supplies weapon potency, damage dice, armor and resilient saves independent of a particular weapon. Replacing or transferring a weapon preserves the baseline. Magical weapons, properties and trinkets should change interesting tactical choices. The first floor advances through level 5. Later entries describe the implemented schedule.
+
+| Fundamental | Upgrade levels and resulting bonus |
+| --- | --- |
+| Weapon potency | 2 (+1), 10 (+2), 16 (+3) |
+| Striking | 4 (2 damage dice), 12 (3), 19 (4) |
+| Armor potency | 5 (+1), 11 (+2), 18 (+3) |
+| Resilient | 8 (+1 saves), 14 (+2), 20 (+3) |
+
+Commit `1e8574d` introduced universal progression. `a052b96` adjusted first-floor creature durability and offense; `d572806` retained an 18-expedition smoke harness. fundamentals checks the level 1–20 table and first-floor unlocks. The initial stat pass is implemented. Difficulty validation remains open.
+
+**Approximately 50% is the eventual full-run win-rate target. The first-floor clear-rate target remains undecided** pending testing and owner approval. Define the cohort and full-run endpoint before measuring wins per eligible start. Record build, environment, seeds, party, retries, abandonments, sample size and uncertainty. The journal’s `floor_clear` and `cleanClear` refer to room ten. A terminal-only journal misses some starts.
+
+Earlier automated expeditions reportedly had unusually high clear rates. Treat that as historical heuristic evidence. Human win rate and pacing need human sessions. Compare identical seeds and policies across revisions and report resource consumption, downs, party mix and where decisions or enemy mechanics were hard to read. For a small heuristic sample use `node tests/balance.cjs index.html 8 0 1`. Use knowledge-balance for a knowledge-limited pilot, boss-balance for Warden counterplay and fundamental-balance for the fixed-party smoke matrix.
+
+## Bosses
+
+| Boss | Current encounter | Remaining evidence or development |
+| --- | --- | --- |
+| Sepulcher Warden · Burial Crypt | Dedicated phases, wardstones, absorbed damage, fixed warnings and telegraphed attacks. `e30b410` introduced the encounter and `00da4ce` improved feedback. boss and combat-feedback pass. | Validate difficulty and legibility across parties. Prior human feedback concerns absorption; overall difficulty signoff is open. |
+| Drowned Warden · Flooded Warrens | `939b63d` implements phased flooding, currents, push/pull, Drowned Grasp immobilization and telegraphed attacks. `15751ca` corrected the Fortitude save key. drowned-warden checks warned cells, phase triggers, movement, immobilization and safe squares across eight seeds. | Live playtest, difficulty validation and visual verification on the flooded board. |
+| Iron Warlord · Ruined Watchfort | Warlord’s Hall, a dedicated sprite and shared boss behavior including a charged sweep and reaction already exist. The room-ten Watchfort branch of `themedEnemySpecs` uses base enemy specs. The war standard PNG is available. | Next major gameplay milestone. Review sightlines, cover, existing attacks and art before proposing distinct Watchfort mechanics. A standard objective is a design option. |
+
+## Slate & Iron art and interface
+
+`spriteAssets` has 34 entries covering nine heroes and 25 creature/boss sprites, including dedicated Crypt enemies. `alphaArt` contains the additional 41 named PNGs embedded by `88df09c`. The package covers both later boss sprites, Warrens and Watchfort terrain, environmental props, three wardstone states, treasure chests, sanctuary shrine, war standard, equipment icons and combat action icons. Commit `3a566e6` integrated five revised seamless terrain tiles.
+
+The audit traced 34 of the 41 package entries to JS or CSS consumers, including terrain used directly as CSS backgrounds. Seven had no identified render path: `war-standard`, `war-banner`, `rubble`, `floodgate`, `drain-grate`, `protection` and `upgrades`. Inventory does not imply that an object has encounter behavior. Check `spriteAssets`, `spriteAliases`, `alphaArt`, CSS backgrounds and `terrainCell` before commissioning art. See ART-1 for the confirmed hobgoblin lookup gap and end-to-end handoff trial.
+
+| Interface area | Live integration to inspect on device |
+| --- | --- |
+| Combat HUD and tactical indicators | `field` renders the 45-cell board, inspector, unit sprites and action/target highlights. |
+| Boss mechanics and telegraphs | Danger cells and warnings convey Warden intent; assess visibility under sprites and water overlays. |
+| Rewards | `lootPanel` supports inspection before assignment and claim. alpha-ui verifies preview leaves resources and RNG intact. |
+| Equipment management | `equipmentPanel` displays live stats, comparisons and eligible between-room transfers. |
+| Advancement | Portrait tabs, choices and confirmation are live for levels 2–5. |
+| Combat feedback | Action recaps, HP changes and ward warnings are visible in the combat flow. |
+
+Preserve pixelated silhouettes, readable footing, dark terrain, parchment panels, warm selection outlines, serif headings, fallback glyphs and keyboard focus. On iPhone and iPad test portrait and landscape with touch: inspect a tile, move or target, read a warning, compare and equip a reward, and advance with minimal navigation. At the 640 px card breakpoint check stacking and control reachability. Keep board scrolling contained. Check large sprites against adjacent cells and verify text and telegraphs at actual game scale. Movement, attack and healing animations are future polish.
+
+## Verification and evidence
+
+Run `node tests/<name>.cjs` from the repository root. Use the [existing scripts](../tests/) for mechanics, sprites, feedback, equipment, telemetry and balance. Most execute the inline game script with stubbed browser services. Record the exact test, seed, environment and result alongside any separate human or device observations. The [migration handoff](work.md#handoff) lists checks run against the audited snapshot.
