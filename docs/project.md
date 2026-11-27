@@ -45,6 +45,52 @@ Commit `1e8574d` introduced universal progression. `a052b96` adjusted first-floo
 
 Earlier automated expeditions reportedly had unusually high clear rates. Treat that as historical heuristic evidence. Human win rate and pacing need human sessions. Compare identical seeds and policies across revisions and report resource consumption, downs, party mix and where decisions or enemy mechanics were hard to read. For a small heuristic sample use `node tests/balance.cjs index.html 8 0 1`. Use knowledge-balance for a knowledge-limited pilot, boss-balance for Warden counterplay and fundamental-balance for the fixed-party smoke matrix.
 
+### BAL-1 results on build 2
+
+**Drafted expeditions.** On merged commit `874869a`, the pilot started seeds 1–36 once in each environment and played through room ten. Every seed used the same draft, party and decision policy across all three routes. The 36 matched triples covered 22 distinct three-build compositions and all nine builds. Twenty triples included a Healing Cloistered Cleric. There were 108 clears from 108 starts, with zero retries, abandonments or harness stalls.
+
+| Route | Clears | Mean boss rounds | Mean party HP, boss entry → finish | Mean potions used before boss | Mean potions carried into boss | Heroes down at room end, rooms 1–9 / 10 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Burial Crypt | 36/36 | 5.61 | 97% → 72% | 4.14 | 5.81 | 3 / 1 |
+| Flooded Warrens | 36/36 | 5.19 | 98% → 79% | 4.39 | 5.17 | 3 / 0 |
+| Ruined Watchfort | 36/36 | 4.67 | 96% → 80% | 6.06 | 3.78 | 6 / 0 |
+
+Watchfort used the most potions on the approach. All six room-end downs there occurred in rooms 7–9, including three in room 8, where parties finished at 74% HP on average. On seed 9, the same Reach Fighter, Thief and Mastermind ended room 8 at 57/162 HP in Crypt, 133/162 in Warrens and 71/162 in Watchfort. Against the Warlord, 23 of the 36 parties finished faster than against the Sepulcher Warden, five tied and eight took longer. Compared with the Drowned Warden, 18 finished faster, 11 tied and seven took longer.
+
+HP is measured before post-combat recovery and includes in-combat healing. Downs count heroes at zero HP when a room ends. Potion spending includes between-room recovery up to boss entry. The pilots drank three further potions in Crypt boss fights across all 36 runs, and zero in the other boss fights. The standard harness's expedition-total potion field also counts healing after room ten. The per-room counters exclude that final recovery.
+
+**Fixed-party check.** The independent 18-run smoke matrix cleared all routes. The Warlord was the shortest or tied boss fight for all six party/seed pairs. These parties were assigned directly, and each had only one seed. Use the drafted cohort above for examples reachable through the normal draft.
+
+**Does responding to a warning help?** A separate pilot played five fixed parties on seeds 1–8 under two policies. Both made the same decisions before room ten. In the boss fight, one continued its normal attacks. The other sometimes moved off warned squares, attacked or disabled active Crypt wardstones, and lowered the Watchfort standard if already within reach. Each pair entered the boss with identical HP. The table gives normal → responsive results. Targets count hero inclusions across logged attack resolutions per boss start. A hero can appear more than once, and an inclusion can miss. Watchfort logs the volley for this measure.
+
+| Boss | Boss starts per policy | Boss wins | Mean logged targets | Mean rounds | Mean finish HP |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Sepulcher Warden | 40 | 39 → 40 | 8.00 → 0.88 | 6.93 → 7.78 | 59% → 68% |
+| Drowned Warden | 40 | 40 → 40 | 5.00 → 1.25 | 5.08 → 6.18 | 77% → 79% |
+| Iron Warlord | 39 | 39 → 39 | 0.64 → 0.00 | 4.64 → 4.44 | 78% → 81% |
+
+The responsive pilot lowered the standard in 8/39 Warlord fights. In the other 31 it also avoided every logged volley target. The comparison measures the combined policy, so it cannot isolate the value of lowering the standard. The same fixed Mastermind/Thief/Harmful Warpriest party lost in Watchfort room 8 on seed 4 under both policies, before it could face the Warlord. On Crypt seed 3 that party lost to the boss under the normal policy and won under the responsive one. All 240 policy runs terminated without a stall.
+
+**Human evidence.** The owner is playtesting. The current estimates describe deterministic pilots on consecutive seeds, with shared seeds across routes. They do not establish a human clear rate or a population confidence interval. Keep the first-floor target open until the owner reviews playtest evidence. The journal fields to compare are build, seed, party, room reached, retries and resource use. For Watchfort, also record whether room 8 depleted supplies and which response the party chose at the first volley.
+
+**Reproduce.** For each environment (`0` Crypt, `1` Warrens, `2` Watchfort), run `node tests/balance.cjs index.html 36 <environment> 1 --runs`. Match records by seed and picks. Within each run, `stats[9]` gives the boss entry, finish, and cumulative resources through combat. For the policy comparison, run `node tests/boss-balance.cjs index.html <environment>`, match party and seed, and filter on `entered` for boss measures. Run `node tests/fundamental-balance.cjs index.html` for the fixed-party smoke check.
+
+### ENC-1 encounter variety and stability
+
+Build 3 revises general-creature draws for new Warrens and Watchfort expeditions. Where consecutive rooms have the same supporting enemies, a draw that would repeat the lineup gets a second deterministic pick from the same pool, excluding that creature. In Warrens room 4 this also breaks up the fixed spiders in rooms 3 and 5. Existing expeditions, retries and **Replay seed** retain their original encounter version. A new draft uses the current version. Terminal journal exports include `encounterVersion`; build 2 records without the field use the original draws.
+
+| Consecutive rooms with identical enemy names, summed across seeds 1–128 | Build 2 | Build 3 fresh draft |
+| --- | ---: | ---: |
+| Burial Crypt | 23 | 23 |
+| Flooded Warrens | 67 | 0 |
+| Ruined Watchfort | 36 | 0 |
+
+Each pair counts once, so three identical fights in succession count twice. Crypt rooms 2 and 3 can field the same named guards. The third room raises the party level, scales creature levels and adds bone hazards. The Warrens seed-5 triple instead put the same lone spider ability set in three successive fights. Build 3 fields a Giant spider, Archer and Giant spider there.
+
+**Stability evidence.** Across 3,840 room starts on seeds 1–128, initial creature footprints fit open terrain without overlaps and every starting enemy had a reachable melee approach. In 108 drafted expeditions per build (seeds 1–36 across all three routes), all parties cleared without retry. Automated terminal journal snapshots confirmed 17 adjacent Warrens repeats and 12 Watchfort repeats in the build 2 sample, and zero in either route in build 3. The fixed BAL-1 seed-4 Mastermind/Thief/Harmful Warpriest defeat reproduced on both builds in Watchfort room 8 against an Assassin and Hobgoblin soldier after five rounds. That fixture ended in a combat defeat with zero party HP. Difficulty remains a BAL-1 playtest question. Human journal exports were unavailable for this audit.
+
+**Reproduce.** Run `node tests/encounters.cjs` for the version comparison, starting-square checks, melee approaches, and save/replay regression. For full expeditions use `node tests/balance.cjs index.html 36 1 1 --runs` for Warrens or replace environment 1 with 2 for Watchfort. To reproduce the controlled defeat, run `node tests/balance.cjs index.html 1 2 4 mastermind,thief,harmful --runs`.
+
 ## Bosses
 
 | Boss | Current encounter | Remaining evidence or development |
@@ -69,6 +115,19 @@ Build 2 renders the existing `war-standard` at I3 while raised. That brings the 
 | Combat feedback | Action recaps, HP changes and ward warnings are visible in the combat flow. |
 
 Preserve pixelated silhouettes, readable footing, dark terrain, parchment panels, warm selection outlines, serif headings, fallback glyphs and keyboard focus. On iPhone and iPad test portrait and landscape with touch: inspect a tile, move or target, read a warning, compare and equip a reward, and advance with minimal navigation. At the 640 px card breakpoint check stacking and control reachability. Keep board scrolling contained. Check large sprites against adjacent cells and verify text and telegraphs at actual game scale. Movement, attack and healing animations are future polish.
+
+### UI-1 interface audit on build 4
+
+| Surface | Interaction verified in Chrome |
+| --- | --- |
+| Combat HUD | Read tiles makes all 45 squares available for inspection. Tap a square or use the arrow keys to read its coordinates, occupant and terrain cues. Escape returns focus to Read tiles. Inspection preserves actions, target, RNG and legal movement buttons. Inspect target jumps between the board and inspector. |
+| Boss warnings | Warned squares on all three boss boards expose danger in their accessible names and display an exclamation mark above the sprite. The marker has its own element so flooded squares can retain the water glyph. Lower standard remains reachable during the Warlord's volley. |
+| Rewards | Preview preserves focus on the selected offer until the player claims it. At widths up to 640 px the three recipient comparisons stack vertically. |
+| Equipment | Equipping a weapon preserves the open equipment sections. If the equipped choice becomes disabled, focus returns to the section summary. |
+| Advancement | Switching heroes preserves focus on the selected tab. When a feat choice advances to another hero, focus follows that hero. Returning to the first hero shows the selected feat. |
+| Combat feedback | The board's Latest action link reaches the current recap, including the actual HP change. The inspector has a return link to the board. |
+
+Run `node tests/browser/interface.cjs` with a local Chromium browser. Set `CHROME_PATH` if the executable is outside the detected locations. The runner creates an isolated temporary browser profile. Build 4 passed at 320×568, 390×844, 640×900, 641×900, 844×390, 768×1024, 1024×768 and 1280×900. All six surfaces fit the page at these sizes. A separate 390 px visual inspection covered occupied volley squares, reward cards and advancement tabs. Physical Safari touch behavior and assistive-technology use remain for device review.
 
 ## Verification and evidence
 
