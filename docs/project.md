@@ -75,6 +75,22 @@ The responsive pilot lowered the standard in 8/39 Warlord fights. In the other 3
 
 **Reproduce.** For each environment (`0` Crypt, `1` Warrens, `2` Watchfort), run `node tests/balance.cjs index.html 36 <environment> 1 --runs`. Match records by seed and picks. Within each run, `stats[9]` gives the boss entry, finish, and cumulative resources through combat. For the policy comparison, run `node tests/boss-balance.cjs index.html <environment>`, match party and seed, and filter on `entered` for boss measures. Run `node tests/fundamental-balance.cjs index.html` for the fixed-party smoke check.
 
+### ENC-1 encounter variety and stability
+
+Build 3 revises general-creature draws for new Warrens and Watchfort expeditions. Where consecutive rooms have the same supporting enemies, a draw that would repeat the lineup gets a second deterministic pick from the same pool, excluding that creature. In Warrens room 4 this also breaks up the fixed spiders in rooms 3 and 5. Existing expeditions, retries and **Replay seed** retain their original encounter version. A new draft uses the current version. Terminal journal exports include `encounterVersion`; build 2 records without the field use the original draws.
+
+| Consecutive rooms with identical enemy names, summed across seeds 1–128 | Build 2 | Build 3 fresh draft |
+| --- | ---: | ---: |
+| Burial Crypt | 23 | 23 |
+| Flooded Warrens | 67 | 0 |
+| Ruined Watchfort | 36 | 0 |
+
+Each pair counts once, so three identical fights in succession count twice. Crypt rooms 2 and 3 can field the same named guards. The third room raises the party level, scales creature levels and adds bone hazards. The Warrens seed-5 triple instead put the same lone spider ability set in three successive fights. Build 3 fields a Giant spider, Archer and Giant spider there.
+
+**Stability evidence.** Across 3,840 room starts on seeds 1–128, initial creature footprints fit open terrain without overlaps and every starting enemy had a reachable melee approach. In 108 drafted expeditions per build (seeds 1–36 across all three routes), all parties cleared without retry. Automated terminal journal snapshots confirmed 17 adjacent Warrens repeats and 12 Watchfort repeats in the build 2 sample, and zero in either route in build 3. The fixed BAL-1 seed-4 Mastermind/Thief/Harmful Warpriest defeat reproduced on both builds in Watchfort room 8 against an Assassin and Hobgoblin soldier after five rounds. That fixture ended in a combat defeat with zero party HP. Difficulty remains a BAL-1 playtest question. Human journal exports were unavailable for this audit.
+
+**Reproduce.** Run `node tests/encounters.cjs` for the version comparison, starting-square checks, melee approaches, and save/replay regression. For full expeditions use `node tests/balance.cjs index.html 36 1 1 --runs` for Warrens or replace environment 1 with 2 for Watchfort. To reproduce the controlled defeat, run `node tests/balance.cjs index.html 1 2 4 mastermind,thief,harmful --runs`.
+
 ## Bosses
 
 | Boss | Current encounter | Remaining evidence or development |
