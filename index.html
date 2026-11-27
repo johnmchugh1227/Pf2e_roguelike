@@ -674,7 +674,7 @@ function recallHazard(s,j){const z=s.hazards[j],i=s.active;if(!canRecallHazard(s
  payAction();return true}
 function hazardPanel(s){const zs=s.hazards||[];if(!zs.length)return '';const j=s.hazardTarget,z=zs[j],selected=z&&z.active;
  return '<div class="hazard-panel"><b>Terrain & hazards</b><div class="actions">'+zs.map((z,k)=>{const p=xy(z.pos);return '<button data-hazardtarget="'+k+'" aria-pressed="'+(j===k)+'" '+(!z.active?'disabled':'')+'>'+hazardDisplay(z)+' · '+String.fromCharCode(65+p[0])+(p[1]+1)+(!z.active?(z.destroyed?' · Destroyed':z.disabled?' · Disabled':z.dormant?' · Dormant':' · Spent'):'')+'</button>'}).join('')+'</div>'+(!selected?'<p class="legend">Select a hazard to inspect or Recall Knowledge.</p>':hazardInspection(s,z,j))+'</div>'}
-const hazardStructures={bones:{ac:10,hp:5,hardness:0},plate:{ac:14,hp:12,hardness:3},altar:{ac:15,hp:22,hardness:5},wardstone:{ac:13,hp:12,hardness:2}};
+const hazardStructures={bones:{ac:10,hp:5,hardness:0},plate:{ac:14,hp:12,hardness:3},altar:{ac:15,hp:22,hardness:5},wardstone:{ac:12,hp:12,hardness:1}};
 function hazardStructure(z){const m=hazardStructures[z.kind];if(!m)return null;return {ac:m.ac+(z.kind==='bones'?0:Math.max(0,z.dc-15)),max:m.hp+(z.kind==='altar'?Math.max(0,z.dc-15)*2:0),hardness:m.hardness}}
 function hazardHP(z){return z.hp??hazardStructure(z)?.max??0}
 function hazardAttackMod(s,i){return profile(run.picks[i])[2]-(s.prone[i]?2:0)-penalty(s.attacks,run.picks[i]==='thief')}
@@ -699,7 +699,7 @@ function fitsEnemy(s,e,at,transit=false){const cells=footprint(e,at);return cell
 
 function applyTaunt(s,i){const e=target(s);for(const x of s.enemies)if(x.taunt===i)x.taunt=-1;e.taunt=i;note(s,name(run.picks[i])+' taunts '+e.name+' until the Guardian’s next turn. Hostile attacks and area DCs excluding the Guardian suffer −1 and expose the enemy.')}
 function tauntPenalty(s,e,targets){if(e.taunt<0||!s.hp[e.taunt]||targets.includes(e.taunt))return 0;e.exposed=true;e.ignoredTaunt=e.taunt;note(s,e.name+' ignores Taunt · −1 attack/DC · off-guard');return 1}
-function reactiveEnemy(e){return !e.noReaction&&!!(e.reactive||e.boss||(e.formation&&e.guard||['Iron guard','Vanguard','Reliquary defender'].includes(e.name)))}
+function reactiveEnemy(e){return !(e.bossScript==='sepulcher'&&e.bossIntent)&&!e.noReaction&&!!(e.reactive||e.boss||(e.formation&&e.guard||['Iron guard','Vanguard','Reliquary defender'].includes(e.name)))}
 function enemyWeapon(e){if(e.weapon!==undefined)return e.weapon;const names={archer:'bow',shieldbearer:'sword',spearman:'spear',assassin:'dagger',ogre:'greataxe',skeletalChampion:'sword',skeletalGiant:'maul',cryptWarden:'greatsword'};
  if(e.type==='skeleton'||e.type==='hobgoblin')return e.guard?'sword':'bow';if(e.type)return names[e.type]||null;return e.boss?'greatsword':e.guard?'weapon':'bow'}
 function weaponDropped(e){return Number.isInteger(e.weaponGround)}
@@ -1089,8 +1089,8 @@ function updateBossPhase(s,e){
  }}
 const bossAttacks={
  sweep:{name:'Sepulcher Sweep',radius:2,save:null,type:'physical'},
- pulse:{name:'Grave Pulse',radius:3,save:'will',type:'void',dice:2,die:6,flat:2,dc:25},
- judgment:{name:'Tombfall',radius:2,save:'reflex',type:'void',dice:3,die:6,flat:2,dc:25}
+ pulse:{name:'Grave Pulse',radius:3,save:'will',type:'void',dice:2,die:6,flat:2,dc:23},
+ judgment:{name:'Tombfall',radius:2,save:'reflex',type:'void',dice:3,die:6,flat:2,dc:24}
 };
 function bossCells(center,radius,excludeCenter=false){return Array.from({length:45},(_,p)=>p).filter(p=>rawTile(p)!=='#'&&dist(center,p)<=radius&&(!excludeCenter||p!==center)&&clear(center,p))}
 function prepareBossIntent(s,e){
@@ -1117,7 +1117,7 @@ function bossSweep(s,e){if(e.bossScript==='sepulcher'&&e.bossIntent)return resol
  defend(s,i,strikeRoll(s,e.name+' sweep → '+name(run.picks[i]),e.attack-pen-enemyAttackPenalty(e)-weaponAttackPenalty(e),ac,10,4,false,i,true));
  }e.charging=false
 }
-function bossWarning(s){const scripted=s.enemies.find(e=>e.bossScript==='sepulcher'&&e.hp>0);if(scripted){const e=scripted,m=e.bossIntent,ward=wardenWard(s,e);return '<section class="card"><b>Phase '+e.bossPhase+' · '+bossPhases[e.bossPhase]+'</b><p class="legend">'+e.hp+'/'+e.max+' HP · Phase II at 70%, Phase III at 30%.'+(ward?' · Wardstones absorb '+ward+' damage per hit. Disable or destroy them.':'')+'</p>'+(m?'<p role="status" style="color:#ffb7a3"><b>Warning: '+bossAttacks[m.kind].name+'!</b> Fixed red squares resolve on the Warden’s next turn. Move out or interrupt it.</p>':'')+'</section>'}const e=s.enemies.find(e=>e.boss&&e.hp>0&&e.charging);return e?'<p role="status" style="color:#ffb7a3"><b>Warning: '+(e.warden&&e.bossTurns%4===3?'Grave Pulse!':'sweeping strike!')+'</b> Red-marked squares are threatened on its next turn.</p>':''}
+function bossWarning(s){const scripted=s.enemies.find(e=>e.bossScript==='sepulcher'&&e.hp>0);if(scripted){const e=scripted,m=e.bossIntent,ward=wardenWard(s,e);return '<section class="card"><b>Phase '+e.bossPhase+' · '+bossPhases[e.bossPhase]+'</b><p class="legend">'+e.hp+'/'+e.max+' HP · Phase II at 70%, Phase III at 30%.'+(ward?' · Wardstones absorb '+ward+' damage per hit. Disable or destroy them.':'')+'</p>'+(m?'<p role="status" style="color:#ffb7a3"><b>Warning: '+bossAttacks[m.kind].name+'!</b> Fixed red squares resolve on the Warden’s next turn. Move out or interrupt it. The Warden cannot use Reactive Strike while preparing this attack.</p>':'')+'</section>'}const e=s.enemies.find(e=>e.boss&&e.hp>0&&e.charging);return e?'<p role="status" style="color:#ffb7a3"><b>Warning: '+(e.warden&&e.bossTurns%4===3?'Grave Pulse!':'sweeping strike!')+'</b> Red-marked squares are threatened on its next turn.</p>':''}
 function dangerSquare(s,i){return s.enemies.some(e=>e.hp>0&&((e.boss&&e.charging&&(e.bossScript==='sepulcher'?!!e.bossIntent?.cells.includes(i):e.warden&&e.bossTurns%4===3?areaCells(e.pos,e.pos,areaSpells.gravePulse).includes(i):dist(e.pos,i)<=2&&i!==e.pos&&clear(e.pos,i)))||(e.areaMark!==undefined&&e.areaMark!==null&&areaCells(e.pos,e.areaMark,areaSpells.fireBurst).includes(i))))}
 function webTarget(s,e){return [0,1,2].filter(i=>s.hp[i]>0&&!s.webbed[i]&&dist(s.pos[i],e.pos)<=6&&clear(e.pos,s.pos[i])&&!inReach(e.pos,s.pos[i],1)).sort((a,b)=>(e.taunt===b?1:0)-(e.taunt===a?1:0)||dist(e.pos,s.pos[a])-dist(e.pos,s.pos[b]))[0]}
 function spinWeb(s,e,t){
