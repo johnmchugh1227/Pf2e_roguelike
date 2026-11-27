@@ -1,6 +1,6 @@
 # Alpha 0.1 roadmap and task queue
 
-The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **Active review: ART-1. Next assignment and gameplay milestone: BOSS-3.**
+The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **ART-1 completed and approved. Next assignment and gameplay milestone: BOSS-3.**
 
 ## Release goals
 
@@ -18,7 +18,7 @@ The repository is the project record. This queue sets order and ownership. The [
 | --- | --- | --- | --- |
 | WF-1 | Lead | Approved and merged | Five specialists, two-child cap, lead-only delegation and handoff conventions. [Setup PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/2) |
 | 1 · ROAD-1 | Lead | Merged | Reconciled the roadmap with the implemented game. [Roadmap PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/3) |
-| 2 · ART-1 | Art and Asset Designer → lead | In review | Shared Watchfort hobgoblin sprite integrated and checked on desktop and phone-sized boards. [Review PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4) |
+| 2 · ART-1 | Art and Asset Designer → lead | Completed, approved and merged | Shared Watchfort hobgoblin sprite integrated and checked on desktop and phone-sized boards. [Merged PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4) |
 | 3 · BOSS-3 | Game Developer | Queued | Review the existing Warlord arena, sweep, reaction, artwork and unused war standard. Propose distinct Watchfort counterplay using its terrain. Obtain owner input on the major encounter design, then implement, test and playtest. |
 | 4 · BAL-1 | Balance Analyst | Queued | Validate both Wardens and the finished Warlord, encounter pressure and resource attrition across varied parties. Report paired seeded evidence and human observations separately. Seek owner approval before adopting a first-floor target. |
 | 5 · ENC-1 | Game Developer | Queued | Identify repeated or unstable encounters from seeds and journals, prioritize observed problems, and verify fixes against reproductions. |
@@ -39,6 +39,8 @@ The repository is the project record. This queue sets order and ownership. The [
 - **Integration.** The lead embedded the PNG in the base sprite dictionary. The sprite regression compares the image in each target cell against the source and checks the A/B tokens. It passed for seed 34 and the 12 opening boards. The alpha-environments and alpha-ui checks passed with 505 and 121 assertions.
 - **Rendered check.** In Chrome at 1280×900, both sprites occupied about 61 px inside 68 px cells. At a 390×844 emulated phone viewport, each occupied about 34 px inside a 39 px cell. Both screenshots showed the A/B badges, the selected archer’s outline and separate target names. Physical-device play remains scheduled under QA-1.
 
-**Next action.** Owner reviews [ART-1](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4). BOSS-3 starts with a Watchfort counterplay proposal for owner input.
+**Playtest build handoff.** Open the review branch's root `index.html` in a private browser window. The Expedition draft header should show `Alpha 0.1 build 1` beside the seed above the first hero choice. After merge, repeat on GitHub Pages. A fresh-draft render check confirmed the build and seed 34, and `node tests/alpha-ui.cjs` passed all 121 assertions.
+
+**Next action.** BOSS-3 starts with a Watchfort counterplay proposal for owner input.
 
 Before a context limit approaches, warn the owner and update the active row with branch/commit, scope, evidence, unresolved decisions and the exact next action. A fresh chat starts here. Follow [repository delegation rules](../AGENTS.md): one writer per file, up to two specialists, no nested delegation. Escalate major design choices, permissions and unresolved blockers.
