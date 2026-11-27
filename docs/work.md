@@ -1,13 +1,13 @@
 # Alpha 0.1 roadmap and task queue
 
-The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **ART-1 completed and approved. Next assignment and gameplay milestone: BOSS-3.**
+The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **BOSS-3 is ready for a human room-ten playtest on the build 2 review branch.**
 
 ## Release goals
 
 | Goal | Evidence still needed for release |
 | --- | --- |
 | A complete, replayable first floor across Burial Crypt, Flooded Warrens and Ruined Watchfort | The seeded ten-room routes exist. Validate repeat expeditions, encounter variety, stability and all three endings. |
-| Nine playable builds and three mechanically distinct bosses | Nine builds are wired into the draft. Validate varied compositions. Two bosses have dedicated mechanics. Finish the Watchfort encounter. |
+| Nine playable builds and three mechanically distinct bosses | Nine builds are wired into the draft. Validate varied compositions. All three bosses have dedicated mechanics on the build 2 review branch. Playtest the Watchfort encounter. |
 | Meaningful advancement, equipment decisions and tactical combat | Systems are integrated. Observe whether players understand tradeoffs and experience meaningful resource pressure. |
 | Approximately 3–5 hours across 6–10 expeditions | Record human session duration, expedition count and repeated content. Pacing remains unmeasured here. |
 | Fully playable on iPhone and iPad, with a consistent Slate & Iron pixel-art identity | Complete device playthroughs and visual review of all environments, controls, icons and boss warnings at game scale. |
@@ -19,7 +19,7 @@ The repository is the project record. This queue sets order and ownership. The [
 | WF-1 | Lead | Approved and merged | Five specialists, two-child cap, lead-only delegation and handoff conventions. [Setup PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/2) |
 | 1 · ROAD-1 | Lead | Merged | Reconciled the roadmap with the implemented game. [Roadmap PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/3) |
 | 2 · ART-1 | Art and Asset Designer → lead | Completed, approved and merged | Shared Watchfort hobgoblin sprite integrated and checked on desktop and phone-sized boards. [Merged PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4) |
-| 3 · BOSS-3 | Game Developer | Queued | Review the existing Warlord arena, sweep, reaction, artwork and unused war standard. Propose distinct Watchfort counterplay using its terrain. Obtain owner input on the major encounter design, then implement, test and playtest. |
+| 3 · BOSS-3 | Game Developer → lead | In review · human playtest pending on `codex/boss-3-watchfort` | Verify the Warlord's signaled volley, terrain cover and one-action standard interaction, then playtest room ten. |
 | 4 · BAL-1 | Balance Analyst | Queued | Validate both Wardens and the finished Warlord, encounter pressure and resource attrition across varied parties. Report paired seeded evidence and human observations separately. Seek owner approval before adopting a first-floor target. |
 | 5 · ENC-1 | Game Developer | Queued | Identify repeated or unstable encounters from seeds and journals, prioritize observed problems, and verify fixes against reproductions. |
 | 6 · UI-1 | UI/UX Designer | Queued | Audit all six integrated surfaces in the project guide, including boss telegraphs. Finish outstanding Slate & Iron presentation and touch flows identified in play. Defer movement, attack and healing animations to polish. |
@@ -41,6 +41,12 @@ The repository is the project record. This queue sets order and ownership. The [
 
 **Playtest build handoff.** Open the review branch's root `index.html` in a private browser window. The Expedition draft header should show `Alpha 0.1 build 1` beside the seed above the first hero choice. After merge, repeat on GitHub Pages. A fresh-draft render check confirmed the build and seed 34, and `node tests/alpha-ui.cjs` passed all 121 assertions.
 
-**Next action.** BOSS-3 starts with a Watchfort counterplay proposal for owner input.
+**BOSS-3 · Game Developer and QA → lead → reviewer.** The owner approved the optional I3 standard and permanent cancellation. Build 2 on `codex/boss-3-watchfort` opens with the volley so even a short fight presents the terrain decision. See [the boss guide](project.md#bosses) for targeting and cover rules.
+
+**Human playtest.** Open the review branch's root `index.html` in a private window and confirm `Alpha 0.1 build 2` in the draft. Select any three heroes, choose Ruined Watchfort and enter room ten, The Warlord's Hall. After the first volley warning, move one hero off the marked row and leave another behind a weapon rack. The first should avoid the volley and the second should receive cover against a shot through the rack. On a subsequent volley warning, move a hero to H3 or another square beside I3 and choose **Lower standard**. Expect one action spent, the volley warning cleared and only close sweeps thereafter. Reload and confirm the standard stays lowered.
+
+**Checks run on build 2.** All 16 focused scripts passed with `node tests/<name>.cjs`: the 15 listed in the ROAD-1 handoff plus `iron-warlord` (35 assertions). The new regression uses seed 34 to exercise telegraph geometry, rack cover, pillar shadow, lowering, subsequent sweeps and loading an older room-ten save. In a Chrome room-ten fixture at 1280×900 and 390×844, the 45-cell board fit the viewport, the volley warning appeared, and clicking Lower standard spent one action and survived reload. `node tests/balance.cjs index.html 3 2 34` cleared all ten rooms on seeds 34–36 without a stall. Room ten averaged four rounds.
+
+**Next action.** Record a human room-ten playtest with build, party, seed, device and whether the warning gave enough information to choose between cover and flanking. BAL-1 follows encounter review.
 
 Before a context limit approaches, warn the owner and update the active row with branch/commit, scope, evidence, unresolved decisions and the exact next action. A fresh chat starts here. Follow [repository delegation rules](../AGENTS.md): one writer per file, up to two specialists, no nested delegation. Escalate major design choices, permissions and unresolved blockers.
