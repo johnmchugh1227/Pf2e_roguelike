@@ -17,6 +17,7 @@ The repository is the project record. This queue sets order and ownership. The [
 | ID | Owner | State | Deliverable and acceptance |
 | --- | --- | --- | --- |
 | WF-1 | Lead | Approved and merged | Five specialists, two-child cap, lead-only delegation and handoff conventions. [Setup PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/2) |
+| WF-2 | Lead | In review on `claude/wf-2-claude-team` · owner chose Claude | Move the team from Codex to Claude: `CLAUDE.md`, six agents in `.claude/agents/` (adds a read-only `reviewer`), file ownership from [Code layout](project.md#code-layout), `node tests/run-all.cjs`. `.codex/` retired. |
 | 1 · ROAD-1 | Lead | Merged | Reconciled the roadmap with the implemented game. [Roadmap PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/3) |
 | 2 · ART-1 | Art and Asset Designer → lead | Completed, approved and merged | Shared Watchfort hobgoblin sprite integrated and checked on desktop and phone-sized boards. [Merged PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4) |
 | 3 · BOSS-3 | Game Developer → lead | [Merged](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/6) · owner playtest in progress | Verify the Warlord's warning and standard decision in human play. |
@@ -64,6 +65,8 @@ The repository is the project record. This queue sets order and ownership. The [
 
 **Checks run.** Before and after the split, all 17 focused regressions produced byte-identical output. So did `balance.cjs index.html 8 <0|1|2> 1`, `boss-balance.cjs index.html <0|1|2>`, `fundamental-balance.cjs` and `knowledge-balance.cjs`. The new `node tests/structure.cjs` passed 43 assertions: separate in-order loading of all 13 scripts, boot render with the build label, and matching `?b=5` cache keys. `node tests/browser/interface.cjs` passed all eight viewports in Chrome. A 390×844 headless Chrome screenshot of the draft was visually inspected.
 
+**WF-2 handoff · Lead → owner.** Owner chose to move development from Codex to Claude on November 28, 2026. Branch `claude/wf-2-claude-team` sits on top of ARCH-1. `CLAUDE.md` replaces the Codex instructions, and `AGENTS.md` now points to it. The five specialists keep their roles, plus write scopes taken from the file layout. A sixth, read-only `reviewer` checks gameplay, save and balance branches before the owner sees them. The art agent cannot generate images from text. It edits and integrates PNGs and writes briefs when new illustrated art is needed. No playable change, so the build stays at 5. **Checks run:** `node tests/run-all.cjs` passed 18/18.
+
 **Next action.** Merge ARCH-1 and confirm build 5 on Pages, then run QA-1 on physical iPhone and iPad hardware. The owner's build 2 playtest and BAL-1 human evidence remain open.
 
-Before a context limit approaches, warn the owner and update the active row with branch/commit, scope, evidence, unresolved decisions and the exact next action. A fresh chat starts here. Follow [repository delegation rules](../AGENTS.md): one writer per file, up to two specialists, no nested delegation. Escalate major design choices, permissions and unresolved blockers.
+Before a context limit approaches, warn the owner and update the active row with branch/commit, scope, evidence, unresolved decisions and the exact next action. A fresh chat starts here. Follow [repository delegation rules](../CLAUDE.md): one writer per file, up to two specialists, no nested delegation, and a `reviewer` pass before gameplay branches are presented. Escalate major design choices, permissions and unresolved blockers.
