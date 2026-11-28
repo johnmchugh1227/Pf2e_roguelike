@@ -22,7 +22,7 @@ function knowledgePolicy(sim){
 function execute(html,rawHarness,n,env,start,party){
  const raw=rawHarness.match(/const sim=("(?:[^"\\]|\\.)*");/s);
  if(!raw)throw Error('Cannot locate baseline policy');
- const sim=knowledgePolicy(JSON.parse(raw[1])),js=html.split('<script>')[1].split('</script>')[0],app={innerHTML:'',addEventListener(){}};
+ const sim=knowledgePolicy(JSON.parse(raw[1])),js=require('./lib/source.cjs')(process.argv[2]||'index.html'),app={innerHTML:'',addEventListener(){}};
  const cases='return Array.from({length:'+n+'},(_,j)=>simulate('+start+'+j,0,'+env+'));';
  const rows=new Function('backupTest','fixedParty','quickBuild','document','localStorage','crypto',js+sim+'\n'+cases)(false,party,false,{getElementById:()=>app},{getItem:()=>null,setItem(){}},{getRandomValues:a=>{a[0]=42;return a}});
  return {runs:rows.length,clears:rows.filter(r=>r.clear===10).length,downs:rows.reduce((n,r)=>n+r.downs,0),potions:rows.reduce((n,r)=>n+r.potions,0),intel:Object.fromEntries(Object.keys(rows[0].intel).map(k=>[k,rows.reduce((n,r)=>n+r.intel[k],0)])),rows:rows.map(r=>({seed:r.seed,clear:r.clear,downs:r.downs,potions:r.potions,intel:r.intel}))}

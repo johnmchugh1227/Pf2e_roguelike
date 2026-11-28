@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const html = fs.readFileSync(process.argv[2] || 'index.html', 'utf8');
-const game = html.split('<script>')[1].split('</script>')[0];
+const game = require('./lib/source.cjs')(process.argv[2]||'index.html');
 const app = { innerHTML: '', addEventListener() {} };
 
 function checkHero(id, weapon, later) {

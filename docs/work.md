@@ -1,6 +1,6 @@
 # Alpha 0.1 roadmap and task queue
 
-The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **UI-1 build 4 is ready for review. QA-1 is next for physical iPhone and iPad testing.**
+The repository is the project record. This queue sets order and ownership. The [project guide](project.md) records what ships today, its evidence and design constraints. **ARCH-1 build 5 is in review. QA-1 is next for physical iPhone and iPad testing.**
 
 ## Release goals
 
@@ -20,9 +20,10 @@ The repository is the project record. This queue sets order and ownership. The [
 | 1 · ROAD-1 | Lead | Merged | Reconciled the roadmap with the implemented game. [Roadmap PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/3) |
 | 2 · ART-1 | Art and Asset Designer → lead | Completed, approved and merged | Shared Watchfort hobgoblin sprite integrated and checked on desktop and phone-sized boards. [Merged PR](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/4) |
 | 3 · BOSS-3 | Game Developer → lead | [Merged](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/6) · owner playtest in progress | Verify the Warlord's warning and standard decision in human play. |
-| 4 · BAL-1 | Balance Analyst → lead | Automated evidence in review on `codex/bal-1-first-floor` | [Paired results for three routes and three bosses](project.md#bal-1-results-on-build-2). Add the owner's human observations when available. The first-floor target remains open. |
-| 5 · ENC-1 | Game Developer → lead | Build 3 in review on `codex/enc-1-encounters` | [Seeded variety and stability results](project.md#enc-1-encounter-variety-and-stability). Check the seed-5 Warrens sequence on a fresh expedition. |
-| 6 · UI-1 | UI/UX Designer → lead | Build 4 in review on `codex/ui-1-interface` | [Six-surface interface audit](project.md#ui-1-interface-audit-on-build-4). Browser checks passed. Physical-device checks are queued under QA-1. |
+| 4 · BAL-1 | Balance Analyst → lead | Automated evidence merged in [#7](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/7) · human evidence open | [Paired results for three routes and three bosses](project.md#bal-1-results-on-build-2). Add the owner's human observations when available. The first-floor target remains open. |
+| 5 · ENC-1 | Game Developer → lead | Build 3 merged in [#7](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/7) | [Seeded variety and stability results](project.md#enc-1-encounter-variety-and-stability). Check the seed-5 Warrens sequence on a fresh expedition. |
+| 6 · UI-1 | UI/UX Designer → lead | Build 4 [merged](https://github.com/johnmchugh1227/Pf2e_roguelike/pull/7) | [Six-surface interface audit](project.md#ui-1-interface-audit-on-build-4). Browser checks passed. Physical-device checks are queued under QA-1. |
+| 6a · ARCH-1 | Lead | Build 5 in review on `claude/arch-1-split` · owner approved the split | Split `index.html` into `css/style.css` and twelve `js/` files with no build step. Acceptance: byte-identical seeded regression and balance output, `tests/structure.cjs` load-order check, eight-viewport browser audit. See [Code layout](project.md#code-layout). |
 | 7 · QA-1 | QA and Testing Engineer | Queued | Play on iPhone and iPad. Record device, OS/browser, orientation, seed, party, touch targets, scroll behavior and save/reload. Cover draft through boss, reward and journal. Run relevant regressions and log blockers. |
 | 8 · REL-1 | Lead | Queued | Review release evidence for all goals, including human pacing, device usability and boss difficulty. Resolve release blockers and present Alpha 0.1 for owner approval. |
 
@@ -57,6 +58,12 @@ The repository is the project record. This queue sets order and ownership. The [
 
 **Checks run.** All 17 focused Node scripts listed in the ENC-1 handoff passed. `node tests/browser/interface.cjs` passed the [eight viewport checks](project.md#ui-1-interface-audit-on-build-4), exercising all three boss boards, tile reading, feedback, rewards, equipment and advancement. A 390 px Chrome screenshot was also visually inspected.
 
-**Next action.** Review build 4 and run QA-1 on physical iPhone and iPad hardware. The owner’s build 2 playtest and the BAL-1 and ENC-1 reviews remain open.
+**ARCH-1 handoff · Lead → owner.** Owner approved ARCH-1 on November 28, 2026. Branch `claude/arch-1-split` from main `5f22a98`. A one-off script parsed the inline game script with acorn and moved each of its 558 top-level statements, unchanged, into one of twelve files under `js/`. `BUILD_ID` stays inline in `index.html`. The 21 Node harnesses now load the scripts through `tests/lib/source.cjs`. The browser audit keeps loading `css/` and `js/` from the repository with a `<base>` tag.
+
+**Playtest.** Open the branch's root `index.html` in a private window, or the hosted game after merge. Confirm `Alpha 0.1 build 5` beside the seed. Play any draft into room one, take a few actions, reload, and confirm the battle resumes. An expedition saved on build 4 in your regular window should resume unchanged, since nothing in the save format or seeds changed.
+
+**Checks run.** Before and after the split, all 17 focused regressions produced byte-identical output. So did `balance.cjs index.html 8 <0|1|2> 1`, `boss-balance.cjs index.html <0|1|2>`, `fundamental-balance.cjs` and `knowledge-balance.cjs`. The new `node tests/structure.cjs` passed 43 assertions: separate in-order loading of all 13 scripts, boot render with the build label, and matching `?b=5` cache keys. `node tests/browser/interface.cjs` passed all eight viewports in Chrome. A 390×844 headless Chrome screenshot of the draft was visually inspected.
+
+**Next action.** Merge ARCH-1 and confirm build 5 on Pages, then run QA-1 on physical iPhone and iPad hardware. The owner's build 2 playtest and BAL-1 human evidence remain open.
 
 Before a context limit approaches, warn the owner and update the active row with branch/commit, scope, evidence, unresolved decisions and the exact next action. A fresh chat starts here. Follow [repository delegation rules](../AGENTS.md): one writer per file, up to two specialists, no nested delegation. Escalate major design choices, permissions and unresolved blockers.

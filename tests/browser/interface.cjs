@@ -122,7 +122,9 @@ const candidates = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/App
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'];
 const chrome = candidates.find(p=>p && fs.existsSync(p));
 if (!chrome) throw Error('Set CHROME_PATH to a local Chromium browser.');
-const source = fs.readFileSync(process.argv[2] || 'index.html','utf8');
+const gamePath = path.resolve(process.argv[2] || 'index.html');
+// The copied page keeps loading css/ and js/ from the game's own folder.
+const source = fs.readFileSync(gamePath,'utf8').replace('<meta charset="utf-8">',m=>m+'<base href="'+pathToFileURL(path.dirname(gamePath)+path.sep).href+'">');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(),'pf2e-interface-'));
 const sizes = [[320,568],[390,844],[640,900],[641,900],[844,390],[768,1024],[1024,768],[1280,900]];
 try {

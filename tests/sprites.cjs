@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const html = fs.readFileSync(process.argv[2] || 'index.html', 'utf8');
-const script = html.split('<script>')[1].split('</script>')[0];
+const script = require('./lib/source.cjs')(process.argv[2]||'index.html');
 const app = { innerHTML: '', addEventListener() {} };
 const storage = new Map();
 let seed = 0;
