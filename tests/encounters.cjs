@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const html = fs.readFileSync(process.argv[2] || 'index.html', 'utf8');
-const game = html.split('<script>')[1].split('</script>')[0];
+const game = require('./lib/source.cjs')(process.argv[2]||'index.html');
 
 function inspectEncounters() {
   // Seed 5 reached three successive lone spiders in a build 2 Warrens run.

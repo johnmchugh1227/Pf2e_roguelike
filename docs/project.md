@@ -1,12 +1,35 @@
 # Alpha 0.1 project guide
 
-Open [index.html](../index.html) in a browser. It contains the rules, game data, embedded PNGs, rendering and input handlers. A seed feeds `fresh` and `dealDraft`; three picks enter one of three ten-room environments. Follow `newRoom` and `kit` into combat, `field` for the board, `battleClick` for actions and `lootPanel` for rewards. Active runs and the journal persist in localStorage. Preserve old saves and seed reproducibility. See [the roadmap](work.md) for release goals, owners and audit results.
+Open [index.html](../index.html) in a browser. It is a short shell that loads [css/style.css](../css/style.css) and the game scripts in [js/](../js/), in the order listed under [Code layout](#code-layout). A seed feeds `fresh` and `dealDraft`; three picks enter one of three ten-room environments. Follow `newRoom` and `kit` into combat, `field` for the board, `battleClick` for actions and `lootPanel` for rewards. Active runs and the journal persist in localStorage. Preserve old saves and seed reproducibility. See [the roadmap](work.md) for release goals, owners and audit results.
+
+## Code layout
+
+ARCH-1 (build 5) split the former single-file game into plain files with no build step. Every file is a classic `<script>`, so all files share one global scope and `index.html` still opens directly from disk. Load order matters only for code that runs at load time: a file's top-level statements may use only earlier files. Functions may call any file at run time. `ui.js` loads last because it boots the game. `node tests/structure.cjs` loads each file separately in browser order and fails if a file depends on a later one.
+
+| File | Contents | Owner |
+| --- | --- | --- |
+| `index.html` | Shell, `BUILD_ID`, script order and `?b=` cache keys | Lead |
+| `css/style.css` | All styling, including embedded terrain tile images | UI/UX Designer (Art for tile images) |
+| `js/art.js` | `alphaArt`, `tileAssets`, `spriteAssets`, `spriteAliases` and art lookup helpers | Art and Asset Designer |
+| `js/data.js` | Heroes, rooms, feats, bestiary, XP budgets, loot, hazards, spells and boss tables | Game Developer (Balance Analyst for tuning values) |
+| `js/run.js` | Seeded run creation, draft, save/load and persistence | Game Developer |
+| `js/journal.js` | Local run journal and telemetry | QA and Testing Engineer |
+| `js/progression.js` | Feats, attributes, fundamental runes, weapon statistics and level-up panels | Game Developer |
+| `js/encounters.js` | Room layouts, enemy specs, creature scaling and encounter budgets | Game Developer |
+| `js/items.js` | Loot, equipment, transfers, Quick Draw, supplies, potions and recovery | Game Developer |
+| `js/combat.js` | Dice, enemies, hazards, strikes, degrees of success, conditions, reactions, movement and line of sight | Game Developer |
+| `js/abilities.js` | Forced movement, maneuvers, cantrips, focus, skills, Recall Knowledge, areas, summons and charges | Game Developer |
+| `js/bosses.js` | Warden, Drowned Warden and Warlord intents, phases and telegraphs | Game Developer |
+| `js/ai.js` | Enemy turns, movement and target selection | Game Developer |
+| `js/ui.js` | Board, panels, combat feedback, `render`, input handlers and boot | UI/UX Designer |
+
+The split moved whole top-level statements without changing their text. On the same seeds, all 17 focused regressions and the balance, boss-balance, fundamental-balance and knowledge-balance harnesses produced byte-identical output before and after. Some `*Panel` markup functions still sit next to their rules in gameplay files. Move them to `ui.js` only when a task touches them.
 
 ## Deployment and playtesting
 
-GitHub Pages serves the root `index.html` from `main`. The HTML includes the game and its art. Review and playtest a branch locally by opening its `index.html` in a browser. Use a private window for a fresh draft when a saved battle resumes.
+GitHub Pages serves the root `index.html`, `css/` and `js/` from `main`. Review and playtest a branch locally by opening its `index.html` in a browser. Use a private window for a fresh draft when a saved battle resumes.
 
-1. For each review build that changes what a player sees or plays, increment the number in `BUILD_ID` in `index.html`. Check the latest `main` before merge so two playable builds never share a number. Documentation-only and test-only edits keep the current identifier.
+1. For each review build that changes what a player sees or plays, increment the number in `BUILD_ID` in `index.html` and set every `?b=` cache key in that file to the same number, so phones do not mix cached files from two builds. `node tests/structure.cjs` checks that they match. Check the latest `main` before merge so two playable builds never share a number. Documentation-only and test-only edits keep the current identifier.
 2. In the handoff, give the expected menu label, the steps to reach the change (including seed, party or environment when relevant), and what the tester should observe. List automated commands and results separately from observations on a browser or device.
 3. After the approved branch merges to `main`, check [Actions](https://github.com/johnmchugh1227/Pf2e_roguelike/actions) for a successful Pages deployment of the merge commit. The publishing source and live URL are listed in [Pages settings](https://github.com/johnmchugh1227/Pf2e_roguelike/settings/pages).
 4. Open the [hosted game](https://johnmchugh1227.github.io/Pf2e_roguelike/) and compare the small build label beside the seed in the Expedition draft header with the handoff. If it shows an older build, verify the deployed commit and reload in a fresh private window. This also lets you keep a saved expedition in your regular window.
@@ -131,4 +154,4 @@ Run `node tests/browser/interface.cjs` with a local Chromium browser. Set `CHROM
 
 ## Verification and evidence
 
-Run `node tests/<name>.cjs` from the repository root. Use the [existing scripts](../tests/) for mechanics, sprites, feedback, equipment, telemetry and balance. Most execute the inline game script with stubbed browser services. Record the exact test, seed, environment and result alongside any separate human or device observations. The [migration handoff](work.md#handoff) lists checks run against the audited snapshot.
+Run `node tests/<name>.cjs` from the repository root. Use the [existing scripts](../tests/) for mechanics, sprites, feedback, equipment, telemetry and balance. Most load the game scripts through [tests/lib/source.cjs](../tests/lib/source.cjs) and run them with stubbed browser services. Run `node tests/structure.cjs` after any change to file layout or load order. Record the exact test, seed, environment and result alongside any separate human or device observations. The [migration handoff](work.md#handoff) lists checks run against the audited snapshot.
